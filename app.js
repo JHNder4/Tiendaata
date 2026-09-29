@@ -188,7 +188,7 @@ async function save() {
 }
 
 function shell(content) {
-  return `<header class="hd"><div class="slot" aria-hidden="true"></div><nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a></nav></header>${content}<footer class="pf"><a href="#/admin">Panel de administración</a></footer>`;
+  return `<header class="hd"><div class="brand">Tienda Ata</div><nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a></nav></header>${content}<footer class="pf"><a href="#/admin">Panel de administración</a></footer>`;
 }
 
 function productCard(product) {

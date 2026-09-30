@@ -45,7 +45,8 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
 let S = { p: [], o: [], c: [], promos: [] };
 let session = null;
 let isAdmin = false;
-let adminPassword = '';
+let authChecking = false;
+let clerkReady = false;
 let ready = false;
 let dirty = false;
 let currentRoute = location.hash;
@@ -135,8 +136,10 @@ const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Nu
 const go = (hash) => { location.hash = hash; };
 
 async function adminRequest(action, extra = {}) {
-  if (!adminPassword) throw new Error('Acceso de administrador requerido.');
-  const response = await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:adminPassword,action,...extra})});
+  if (!window.Clerk?.session) throw new Error('Inicia sesión como administrador.');
+  const token = await window.Clerk.session.getToken();
+  if (!token) throw new Error('La sesión de administrador no está disponible.');
+  const response = await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...extra})});
   const result = await response.json().catch(()=>({}));
   if(!response.ok||result.error)throw new Error(result.error||'No se pudo completar la operación.');
   return result;
@@ -357,18 +360,46 @@ function done(orderNumber) {
   return `<h1>Pedido #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido quedó registrado correctamente.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
 }
 
-function adminLogin(){return `<section class="f"><h2>Acceso de administración</h2><p class="mu">Introduce la contraseña única de administración.</p><form id="admin-login"><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button class="btn" id="login-button">Entrar</button></form><p id="login-error" class="mu" role="alert"></p></section>`;}
+function adminLogin(){
+  return `<section class="f clerk-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta autorizada de Google.</p><div id="clerk-sign-in"></div><p id="login-error" class="mu" role="alert"></p></section>`;
+}
 function adminDenied() {
-  return `<section class="f"><h2>Cuenta sin permisos de administración</h2><p class="mu">Esta cuenta puede iniciar sesión, pero no está autorizada para ver pedidos ni modificar productos. Pide al propietario de la tienda que la agregue a <code>public.admins</code>.</p><button class="btn s" id="logout-button">Cerrar sesión</button></section>`;
+  return `<section class="f"><h2>Cuenta sin permisos de administración</h2><p class="mu">Tu cuenta está autenticada, pero no está autorizada para administrar Tienda Ata.</p><button class="btn s" id="logout-button">Cerrar sesión</button></section>`;
 }
 
 function bindAdminLogin(){
-  const form=$('#admin-login');if(form)form.onsubmit=async event=>{event.preventDefault();const button=$('#login-button'),message=$('#login-error');button.disabled=true;button.textContent='Verificando…';message.textContent='';
-    try{const password=form.elements.password.value;const response=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,action:'check'})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.error||'Contraseña incorrecta.');adminPassword=password;isAdmin=true;session={admin:true};await loadProducts();await loadOrders();await loadPromotions();render();}
-    catch(error){message.textContent=error.message||'Contraseña incorrecta.';button.disabled=false;button.textContent='Entrar';}};
-  const logout=$('#logout-button');if(logout)logout.onclick=signOut;
+  if (!window.Clerk) return;
+  if (window.Clerk.user) {
+    if (!authChecking && !isAdmin) void verifyAdminSession();
+    return;
+  }
+  const host=$('#clerk-sign-in');
+  if (!host || host.dataset.mounted) return;
+  host.dataset.mounted='1';
+  window.Clerk.mountSignIn(host,{oauthFlow:'redirect',withSignUp:true,fallbackRedirectUrl:location.href});
 }
-async function signOut(){adminPassword='';session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');}
+
+async function verifyAdminSession(){
+  if (authChecking) return;
+  authChecking=true;
+  session=window.Clerk?.session||null;
+  try {
+    const result=await adminRequest('check');
+    isAdmin=!!result.ok;
+    if (isAdmin) { await loadProducts(); await loadOrders(); await loadPromotions(); }
+  } catch(error) {
+    isAdmin=false;
+    console.warn('Cuenta sin acceso administrativo:',error);
+  } finally {
+    authChecking=false;
+    render();
+  }
+}
+
+async function signOut(){
+  try { await window.Clerk?.signOut(); } catch (_) {}
+  session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');
+}
 
 function adminShell(section, content) {
   const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
@@ -676,7 +707,8 @@ async function saveP(status) {
 }
 
 function loginOrAdminContent(section, route) {
-  if (!session) return adminLogin();
+  if (!window.Clerk?.user) return adminLogin();
+  if (authChecking) return '<section class="f"><h2>Verificando acceso…</h2><p class="mu">Comprobando permisos de administración.</p></section>';
   if (!isAdmin) return adminDenied();
   let content;
   let after;
@@ -736,6 +768,6 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-async function init(){try{await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
+async function init(){try{if(window.__clerkReady) await window.__clerkReady;session=window.Clerk?.session||null;await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')&&window.Clerk?.user&&!isAdmin) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
 
 void init();

@@ -248,26 +248,20 @@ function productCard(product) {
 }
 
 function bannerMarkup() {
-  const configured=(S.banners||[]).filter(b=>b.active).sort((a,b)=>Number(a.position)-Number(b.position)).slice(0,6);
-  const list = configured.length ? configured : [{
-    id:'banner_fallback_20off',
-    kind:'text',
-    title:'20% OFF',
-    subtitle:'Descuento especial en productos seleccionados',
-    image_url:'/banner-20-off.svg',
-    link:'#/catalogo',
-    button_text:'Ver ofertas',
-    active:true,
-    position:0
-  }];
-  return `<section class="banner-rail" aria-label="Destacados"><div class="banner-track">${list.map((b)=>{
-    const product=b.product_id?S.p.find(p=>p.id===b.product_id):null;
-    const promo=b.promotion_id?S.promos.find(p=>p.id===b.promotion_id):null;
-    const title=b.title||product?.name||promo?.title||'';
-    const subtitle=b.subtitle||product?.desc||promo?.subtitle||'';
-    const image=b.image_url||(product?.photos?.[0]||'');
-    const href=b.link||(product?'#/producto/'+encodeURIComponent(product.id):'#/catalogo');
-    return `<article class="glass-banner">${image?im(image,title,'banner-image'):''}<div class="banner-copy"><span class="banner-kind">${esc(b.kind)}</span><h2>${esc(title)}</h2><p>${esc(subtitle)}</p>${b.button_text?`<a class="nav-btn" href="${esc(href)}">${esc(b.button_text)}</a>`:''}</div></article>`;
+  const list = bannerSettings().filter((banner) => banner.active);
+  if (!list.length) return '';
+  return `<section class="banner-rail" aria-label="Destacados"><div class="banner-track">${list.map((banner) => {
+    const preset = Number(banner.position) + 1;
+    const href = safeBannerLink(banner.link);
+    return `<article class="glass-banner banner-preset-${preset}">
+      <div class="banner-light-orb" aria-hidden="true"></div>
+      <div class="banner-copy">
+        <span class="banner-kind">${esc(banner.kind)}</span>
+        <h2>${esc(banner.title)}</h2>
+        <p>${esc(banner.subtitle)}</p>
+        ${banner.button_text ? `<a class="nav-btn" href="${esc(href)}">${esc(banner.button_text)}</a>` : ''}
+      </div>
+    </article>`;
   }).join('')}</div></section>`;
 }
 function home() {

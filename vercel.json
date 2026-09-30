@@ -1,6 +1,10 @@
 {
   "rewrites": [
     {
+      "source": "/__clerk/:path*",
+      "destination": "/api/__clerk/:path*"
+    },
+    {
       "source": "/admin",
       "destination": "/index.html"
     }

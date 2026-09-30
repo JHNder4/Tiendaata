@@ -279,6 +279,88 @@ section.f{background:#151517;border:1px solid rgba(255,255,255,.09);border-radiu
 .promo-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 0;border-bottom:1px solid rgba(255,255,255,.08)}
 .promo-row:last-child{border-bottom:0}.promo-row strong{font-size:16px}
 @media(max-width:600px){.promo-banner{grid-template-columns:1fr}.promo-banner>div{padding:18px}.promo-row{align-items:flex-start;flex-direction:column}.promo-row .row{width:100%}}
+
+/* Related products — Apple-style recommendation rail */
+.related-products{margin-top:88px;padding-top:12px}
+.related-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:24px}
+.related-head span{display:block;color:#8e8e93;font-size:11px;font-weight:600;letter-spacing:.12em;margin-bottom:8px}
+.related-head h2{margin:0;font-size:clamp(28px,4vw,42px)}
+.related-head>a{color:#a1a1a6;text-decoration:none;font-size:13px;white-space:nowrap}.related-head>a:hover{color:#fff}
+.related-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:22px}
+.related-card{display:block;color:#f5f5f7;text-decoration:none;min-width:0}
+.related-card>img,.related-card>.ph{display:block;width:100%;aspect-ratio:1/1;object-fit:contain;background:#171719;border:1px solid rgba(255,255,255,.07);border-radius:18px;transition:transform .18s ease,box-shadow .18s ease}
+.related-card:hover>img,.related-card:hover>.ph{transform:translateY(-3px);box-shadow:0 18px 35px -28px #000}
+.related-info{padding-top:12px}.related-info b{display:block;font-size:14px;font-weight:600;line-height:1.35}.related-info span{display:block;margin-top:4px;color:#a1a1a6;font-size:13px}
+@media(max-width:900px){.related-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.related-products{margin-top:62px}.related-head{align-items:flex-start}.related-head h2{font-size:27px}.related-head>a{padding-top:20px}.related-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 11px}.related-card>img,.related-card>.ph{border-radius:14px}.related-info{padding-top:9px}.related-info b{font-size:13px}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
 <div class="wrap" id="app"></div>
-<script src="/app.js" defer></script></body></html>
+<script src="/app.js" defer></script><script defer>
+/* Tienda Ata — productos relacionados en detalle */
+(function(){
+  const SUPABASE_URL='https://svvylvtmmynxkmdowymx.supabase.co';
+  const SUPABASE_KEY='sb_publishable_RYbyrmTxY4Qv2rKTuxeT6Q_70Juauak';
+  let cache=null, loading=false;
+
+  const esc=(v)=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
+  const money=(v)=>'
++Number(v||0).toLocaleString('es-MX')+' MXN';
+  const img=(src,name)=>{
+    const url=String(src||'');
+    return /^https:\/\//i.test(url)
+      ? '<img src="'+esc(url)+'" alt="'+esc(name)+'" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'ph\',textContent:\'Sin foto\'}))">'
+      : '<div class="ph">Sin foto</div>';
+  };
+
+  async function products(){
+    if(cache) return cache;
+    if(loading) return [];
+    loading=true;
+    try{
+      const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false}});
+      const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:false});
+      if(error) throw error;
+      cache=(data||[]).filter(r=>r.data&&typeof r.data==='object'&&r.data.status==='published').map(r=>({...r.data,id:r.id}));
+      return cache;
+    }catch(e){console.warn('No se pudieron cargar productos relacionados:',e);return []}
+    finally{loading=false}
+  }
+
+  function card(p){
+    return '<a class="related-card" href="#/producto/'+encodeURIComponent(p.id)+'">'+img((p.photos||[])[0],p.name||'Producto')+
+      '<div class="related-info"><b>'+esc(p.name||'Producto')+'</b><span>'+money(p.price)+'</span></div></a>';
+  }
+
+  async function mount(){
+    if(!location.hash.startsWith('#/producto/')) return;
+    const host=document.querySelector('.pd');
+    if(!host||host.querySelector('.related-products')) return;
+    const id=decodeURIComponent(location.hash.slice('#/producto/'.length).split('?')[0]);
+    const list=await products();
+    const current=list.find(p=>p.id===id);
+    if(!current) return;
+
+    const others=list.filter(p=>p.id!==id);
+    const scored=others.map(p=>{
+      let score=0;
+      if(current.cat&&p.cat===current.cat) score+=5;
+      if(current.brand&&p.brand&&p.brand===current.brand) score+=4;
+      if(current.sizes&&p.sizes) score+=1;
+      if(Number(p.stock||0)>0 || Object.values(p.sizes||{}).some(n=>Number(n)>0)) score+=1;
+      return {p,score};
+    }).sort((a,b)=>b.score-a.score||String(a.p.name).localeCompare(String(b.p.name))).slice(0,8).map(x=>x.p);
+
+    if(!scored.length) return;
+    const section=document.createElement('section');
+    section.className='related-products';
+    const title=current.cat ? 'También te puede gustar' : 'Más productos';
+    section.innerHTML='<div class="related-head"><div><span>TIENDA ATA</span><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
+    host.insertAdjacentElement('afterend',section);
+  }
+
+  const observer=new MutationObserver(()=>{if(location.hash.startsWith('#/producto/')) setTimeout(mount,40)});
+  observer.observe(document.getElementById('app'),{childList:true,subtree:true});
+  window.addEventListener('hashchange',()=>setTimeout(mount,80));
+  setTimeout(mount,500);
+})();
+</script></body></html>

@@ -1,5 +1,6 @@
 const SB_URL = 'https://svvylvtmmynxkmdowymx.supabase.co';
 const SB_PUBLISHABLE_KEY = 'sb_publishable_RYbyrmTxY4Qv2rKTuxeT6Q_70Juauak';
+const ADMIN_FN = SB_URL + '/functions/v1/admin-panel';
 const client = window.supabase.createClient(SB_URL, SB_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
@@ -42,6 +43,7 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
 let S = { p: [], o: [], c: [] };
 let session = null;
 let isAdmin = false;
+let adminPassword = '';
 let ready = false;
 let dirty = false;
 let currentRoute = location.hash;
@@ -108,72 +110,27 @@ const cartTotal = () => cartRows().reduce((sum, { item, product }) => sum + item
 const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
 const go = (hash) => { location.hash = hash; };
 
-async function loadProducts() {
-  const { data, error } = await client
-    .from('products')
-    .select('id,data,is_demo,created_at')
-    .order('created_at', { ascending: true });
-  if (error) throw error;
-  S.p = (data || [])
-    .filter((record) => record.id !== '_seeded' && record.data && typeof record.data === 'object')
-    .map((record) => ({ ...record.data, id: record.id, isDemo: !!record.is_demo || !!record.data.isDemo }));
-  Object.keys(snapshot).forEach((id) => delete snapshot[id]);
-  S.p.forEach((product) => { snapshot[product.id] = JSON.stringify(product); });
+async function adminRequest(action, extra = {}) {
+  if (!adminPassword) throw new Error('Acceso de administrador requerido.');
+  const response = await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:adminPassword,action,...extra})});
+  const result = await response.json().catch(()=>({}));
+  if(!response.ok||result.error)throw new Error(result.error||'No se pudo completar la operación.');
+  return result;
 }
-
-async function loadOrders() {
-  if (!isAdmin) {
-    S.o = [];
-    return;
-  }
-  const { data, error } = await client
-    .from('orders')
-    .select('n,data,created_at')
-    .order('n', { ascending: false });
-  if (error) throw error;
-  S.o = (data || []).map((record) => ({ ...(record.data || {}), n: record.n }));
+async function loadProducts(){
+  if(isAdmin){const result=await adminRequest('products');S.p=(result.data||[]).filter(r=>r.id!=='_seeded'&&r.data&&typeof r.data==='object').map(r=>({...r.data,id:r.id,isDemo:!!r.is_demo||!!r.data.isDemo}));}
+  else{const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:true});if(error)throw error;S.p=(data||[]).filter(r=>r.id!=='_seeded'&&r.data&&typeof r.data==='object').map(r=>({...r.data,id:r.id,isDemo:!!r.is_demo||!!r.data.isDemo}));}
+  Object.keys(snapshot).forEach(id=>delete snapshot[id]);S.p.forEach(product=>{snapshot[product.id]=JSON.stringify(product);});
 }
+async function loadOrders(){if(!isAdmin){S.o=[];return;}const result=await adminRequest('orders');S.o=(result.data||[]).map(r=>({...r.data||{},n:r.n}));}
+async function refreshAdminState(){if(!isAdmin){S.o=[];return;}try{await loadOrders();}catch(error){console.error('No se pudieron cargar los pedidos:',error);S.o=[];}}
 
-async function refreshAdminState() {
-  if (!session) {
-    isAdmin = false;
-    S.o = [];
-    return;
-  }
-  const { data, error } = await client.rpc('es_admin');
-  isAdmin = !error && data === true;
-  if (isAdmin) {
-    try { await loadOrders(); }
-    catch (error) { console.error('No se pudieron cargar los pedidos:', error); S.o = []; }
-  } else {
-    S.o = [];
-  }
+async function persistProducts(){
+  const currentIds=new Set(S.p.map(p=>p.id)),changed=S.p.filter(p=>snapshot[p.id]!==JSON.stringify(p)),deleted=Object.keys(snapshot).filter(id=>!currentIds.has(id));
+  if(!changed.length&&!deleted.length)return true;if(!isAdmin){toast('Ingresa la contraseña de administrador para guardar cambios.');return false;}
+  if(changed.length){await adminRequest('upsert_products',{rows:changed.map(rowForProduct)});changed.forEach(p=>{snapshot[p.id]=JSON.stringify(p);});}
+  if(deleted.length){await adminRequest('delete_products',{ids:deleted});deleted.forEach(id=>delete snapshot[id]);}return true;
 }
-
-async function persistProducts() {
-  const currentIds = new Set(S.p.map((product) => product.id));
-  const changed = S.p.filter((product) => snapshot[product.id] !== JSON.stringify(product));
-  const deleted = Object.keys(snapshot).filter((id) => !currentIds.has(id));
-
-  if (!changed.length && !deleted.length) return true;
-  if (!isAdmin) {
-    toast('Inicia sesión con una cuenta administradora para guardar cambios.');
-    return false;
-  }
-
-  if (changed.length) {
-    const { error } = await client.from('products').upsert(changed.map(rowForProduct), { onConflict: 'id' });
-    if (error) throw error;
-    changed.forEach((product) => { snapshot[product.id] = JSON.stringify(product); });
-  }
-  if (deleted.length) {
-    const { error } = await client.from('products').delete().in('id', deleted);
-    if (error) throw error;
-    deleted.forEach((id) => delete snapshot[id]);
-  }
-  return true;
-}
-
 async function save() {
   try { localStorage.setItem(CART_KEY, JSON.stringify(S.c)); } catch (_) { /* private browsing may block local storage */ }
   try {
@@ -369,51 +326,18 @@ function done(orderNumber) {
   return `<h1>Pedido de prueba #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido de prueba quedó registrado.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
 }
 
-function adminLogin() {
-  return `<section class="f"><h2>Acceso de administración</h2><p class="mu">El panel requiere una cuenta autorizada. No hay registro público. Si aún no tienes acceso, primero crea el usuario en Supabase y autorízalo en la tabla <code>admins</code>.</p><form id="admin-login"><label>Correo<input type="email" name="email" autocomplete="username" required></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button class="btn" id="login-button">Iniciar sesión</button></form><p id="login-error" class="mu" role="alert"></p></section>`;
-}
-
+function adminLogin(){return `<section class="f"><h2>Acceso de administración</h2><p class="mu">Introduce la contraseña única de administración.</p><form id="admin-login"><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button class="btn" id="login-button">Entrar</button></form><p id="login-error" class="mu" role="alert"></p></section>`;}
 function adminDenied() {
   return `<section class="f"><h2>Cuenta sin permisos de administración</h2><p class="mu">Esta cuenta puede iniciar sesión, pero no está autorizada para ver pedidos ni modificar productos. Pide al propietario de la tienda que la agregue a <code>public.admins</code>.</p><button class="btn s" id="logout-button">Cerrar sesión</button></section>`;
 }
 
-function bindAdminLogin() {
-  const form = $('#admin-login');
-  if (form) form.onsubmit = async (event) => {
-    event.preventDefault();
-    const button = $('#login-button');
-    const message = $('#login-error');
-    button.disabled = true;
-    button.textContent = 'Verificando…';
-    message.textContent = '';
-    const { error } = await client.auth.signInWithPassword({
-      email: form.elements.email.value.trim(),
-      password: form.elements.password.value
-    });
-    if (error) {
-      message.textContent = 'No se pudo iniciar sesión. Revisa tus datos o la autorización de esta cuenta.';
-      button.disabled = false;
-      button.textContent = 'Iniciar sesión';
-      return;
-    }
-    const { data: sessionData } = await client.auth.getSession();
-    session = sessionData.session;
-    await refreshAdminState();
-    render();
-    if (!isAdmin) toast('Tu cuenta todavía no tiene permisos de administración.');
-  };
-  const logout = $('#logout-button');
-  if (logout) logout.onclick = signOut;
+function bindAdminLogin(){
+  const form=$('#admin-login');if(form)form.onsubmit=async event=>{event.preventDefault();const button=$('#login-button'),message=$('#login-error');button.disabled=true;button.textContent='Verificando…';message.textContent='';
+    try{const password=form.elements.password.value;const response=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,action:'check'})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.error||'Contraseña incorrecta.');adminPassword=password;isAdmin=true;session={admin:true};await loadProducts();await loadOrders();render();}
+    catch(error){message.textContent=error.message||'Contraseña incorrecta.';button.disabled=false;button.textContent='Entrar';}};
+  const logout=$('#logout-button');if(logout)logout.onclick=signOut;
 }
-
-async function signOut() {
-  await client.auth.signOut();
-  session = null;
-  isAdmin = false;
-  S.o = [];
-  render();
-  toast('Sesión cerrada.');
-}
+async function signOut(){adminPassword='';session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');}
 
 function adminShell(section, content) {
   const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['inventario', 'Inventario', 0], ['ajustes', 'Ajustes', 0]];
@@ -435,22 +359,7 @@ function orderDetail(number) {
     <p><b>Nombre:</b> ${esc(order.name)}<br><b>Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Notas:</b> ${esc(order.notes || '—')}</p>`;
 }
 
-async function setSt(number, status) {
-  const order = S.o.find((item) => String(item.n) === String(number));
-  if (!order) return;
-  const old = order.status;
-  order.status = status;
-  const { n, ...payload } = order;
-  const { error } = await client.from('orders').update({ data: payload }).eq('n', number);
-  if (error) {
-    order.status = old;
-    render();
-    toast('No se pudo actualizar el estado del pedido.');
-    return;
-  }
-  toast('Estado actualizado.');
-}
-
+async function setSt(number,status){const order=S.o.find(item=>String(item.n)===String(number));if(!order)return;const old=order.status;order.status=status;const {n,...payload}=order;try{await adminRequest('update_order',{n:number,data:payload});toast('Estado actualizado.');}catch(_){order.status=old;render();toast('No se pudo actualizar el estado del pedido.');}}
 function productList(query = '') {
   const text = query.toLowerCase();
   const list = S.p.filter((product) => !text || `${product.name || ''}${product.brand || ''}${product.cat || ''}`.toLowerCase().includes(text));
@@ -575,17 +484,7 @@ function resizeImage(file) {
   });
 }
 
-async function uploadPhoto(file) {
-  if (!isAdmin) throw new Error('Inicia sesión como administrador para subir fotos.');
-  if (!file.type.startsWith('image/')) throw new Error('El archivo debe ser una imagen.');
-  const blob = await resizeImage(file);
-  const name = `${Date.now()}-${Math.random().toString(36).slice(2, 9)}.jpg`;
-  const { error } = await client.storage.from('fotos').upload(name, blob, { contentType: 'image/jpeg', upsert: false });
-  if (error) throw error;
-  const { data } = client.storage.from('fotos').getPublicUrl(name);
-  return data.publicUrl;
-}
-
+async function uploadPhoto(file){if(!isAdmin)throw new Error('Ingresa la contraseña de administrador para subir fotos.');if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');const blob=await resizeImage(file),name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`,bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));const result=await adminRequest('upload_photo',{name,contentType:'image/jpeg',base64:btoa(binary)});return result.url;}
 async function addPhotos(files, replaceAt = null) {
   const accepted = [...files].filter((file) => file.type.startsWith('image/'));
   if (!accepted.length) return;
@@ -751,28 +650,6 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-client.auth.onAuthStateChange((_event, newSession) => {
-  session = newSession;
-  setTimeout(async () => {
-    await refreshAdminState();
-    render();
-  }, 0);
-});
-
-async function init() {
-  try {
-    const { data, error } = await client.auth.getSession();
-    if (error) throw error;
-    session = data.session;
-    await refreshAdminState();
-    await loadProducts();
-    ready = true;
-    currentRoute = location.hash;
-    render();
-  } catch (error) {
-    console.error('No se pudo iniciar la tienda:', error);
-    $('#app').innerHTML = '<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';
-  }
-}
+async function init(){try{await loadProducts();ready=true;currentRoute=location.hash;render();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
 
 void init();

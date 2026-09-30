@@ -207,13 +207,21 @@ async function save() {
 
 function shell(content) {
   return `<header class="hd">
-    <div class="brand">Tienda Ata</div>
+    <a class="brand" href="#/">Tienda Ata</a>
     <nav>
       <a href="#/">Inicio</a>
       <a href="#/catalogo">Catálogo</a>
-      <a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a>
+      <a href="#/carrito">Carrito <span class="cart-pill" id="cc">${cartCount()}</span></a>
     </nav>
-  </header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
+  </header>
+  <main class="store-main">${content}</main>
+  <footer class="pf">
+    <div class="pf-main">
+      <div><strong>Tienda Ata</strong><p>Moda, estilo y piezas seleccionadas.</p></div>
+      <div class="pf-nav"><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito</a><a href="#/admin">Administración</a></div>
+    </div>
+    <div class="pf-bottom"><span>© ${new Date().getFullYear()} Tienda Ata. Todos los derechos reservados.</span><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div>
+  </footer>`;
 }
 
 function productCard(product) {
@@ -226,11 +234,15 @@ function home() {
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
   const categories = [...new Set(list.map((product) => product.cat).filter(Boolean))];
   const banners = activePromotions().filter((promo) => promo.scope === 'all');
-  return `${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || "Oferta")}</span><strong>${esc(promo.title)}</strong>${promo.subtitle ? `<p>${esc(promo.subtitle)}</p>` : ""}</div>`).join("")}</div>` : ""}<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><span class="search-icon">⌕</span><input name="q" placeholder="Buscar" aria-label="Buscar"><button class="btn">Buscar</button></form>
-     <div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div>
-     <div class="section-label">Categorías</div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div>
-     <div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div>
-     ${offers.length ? `<section class="offer-block"><div class="section-label">Ofertas</div><div class="grid">${offers.map(productCard).join("")}</div></section>` : ""}`;
+  return `<section class="store-hero">
+      <div><span class="eyebrow">TIENDA ATA</span><h1>Tu estilo,<br><em>a tu manera.</em></h1><p>Descubre prendas y piezas seleccionadas para complementar tu estilo.</p><a class="btn hero-btn" href="#/catalogo">Explorar catálogo</a></div>
+      <div class="hero-note"><span>NUEVA COLECCIÓN</span><b>${list.length}</b><small>productos disponibles</small></div>
+    </section>
+    ${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || "Oferta")}</span><strong>${esc(promo.title)}</strong>${promo.subtitle ? `<p>${esc(promo.subtitle)}</p>` : ""}</div>`).join("")}</div>` : ""}
+    <section class="store-tools"><form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><span class="search-icon">⌕</span><input name="q" placeholder="¿Qué estás buscando?" aria-label="Buscar"><button class="btn">Buscar</button></form><div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div></section>
+    <section class="store-section"><div class="section-head"><div><span class="eyebrow">DESCUBRE</span><h2>Categorías</h2></div><a href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
+    <section class="store-section"><div class="section-head"><div><span class="eyebrow">SELECCIÓN ATA</span><h2>Lo más reciente</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div></section>
+    ${offers.length ? `<section class="store-section offer-block"><div class="section-head"><div><span class="eyebrow">OPORTUNIDADES</span><h2>Ofertas</h2></div><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`);
 }
 
 function filteredProducts() {

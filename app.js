@@ -176,8 +176,62 @@ async function save() {
 }
 
 function shell(content) {
-  return `<header class="hd"><div class="brand">Tienda Ata</div><nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a></nav></header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
+  return `<header class="hd">
+    <div class="brand">Tienda Ata</div>
+    <nav>
+      <a href="#/">Inicio</a>
+      <a href="#/catalogo">Catálogo</a>
+      <a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a>
+      <div class="account-area" id="clerk-account" aria-label="Cuenta">
+        <button class="account-login" type="button" onclick="openClerkSignIn()">Iniciar sesión</button>
+      </div>
+    </nav>
+  </header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
 }
+
+function openClerkSignIn() {
+  if (!window.Clerk || !clerkReady) {
+    toast('Cargando inicio de sesión…');
+    void window.__clerkReady?.then(() => openClerkSignIn());
+    return;
+  }
+  window.Clerk.openSignIn({
+    fallbackRedirectUrl: location.href,
+    signUpFallbackRedirectUrl: location.href
+  });
+}
+
+function mountHeaderAuth() {
+  const host = $('#clerk-account');
+  if (!host || !clerkReady || !window.Clerk) return;
+  if (window.Clerk.user) {
+    if (host.dataset.mounted === '1') return;
+    host.innerHTML = '';
+    host.dataset.mounted = '1';
+    window.Clerk.mountUserButton(host, { afterSignOutUrl: location.href });
+  } else {
+    host.dataset.mounted = '';
+    host.innerHTML = '<button class="account-login" type="button" onclick="openClerkSignIn()">Iniciar sesión</button>';
+  }
+}
+
+function ensureClerkHeaderStyles() {
+  if ($('#clerk-header-styles')) return;
+  const style = document.createElement('style');
+  style.id = 'clerk-header-styles';
+  style.textContent = `
+    .account-area{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;min-height:38px}
+    .account-login{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#f5f5f7;border-radius:999px;padding:9px 15px;font:inherit;font-size:13px;font-weight:550;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.08),0 10px 25px rgba(0,0,0,.12);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:transform .16s ease,background .16s ease}
+    .account-login:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
+    .account-login:active{transform:scale(.98)}
+    body.light-mode .account-login{background:rgba(255,255,255,.72);border-color:rgba(0,0,0,.10);color:#1d1d1f}
+    body.light-mode .account-login:hover{background:rgba(255,255,255,.92)}
+    @media(max-width:600px){.account-area{margin-left:0}.account-login{padding:8px 11px;font-size:12px}}
+  `;
+  document.head.appendChild(style);
+}
+
+
 
 function productCard(product) {
   const photos = product.photos || [];
@@ -734,6 +788,8 @@ function render() {
     const section = route[1] || 'pedidos';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
+    ensureClerkHeaderStyles();
+    mountHeaderAuth();
     if (typeof result === 'string') bindAdminLogin();
     else { result.after?.(); bindAdminLogin(); if (section === 'promociones') bindPromotions(); }
     return;
@@ -750,6 +806,8 @@ function render() {
   else if (route[0] === 'confirmacion') content = done(route[1]);
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
+  ensureClerkHeaderStyles();
+  mountHeaderAuth();
   if (route[0] === 'catalogo') renderProductList();
   if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
   after?.();

@@ -44,6 +44,7 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
 let S = { p: [], o: [], c: [], promos: [] };
 let isAdmin = false;
 let authChecking = false;
+let recoveryMode = false;
 let ready = false;
 let dirty = false;
 let currentRoute = location.hash;
@@ -397,7 +398,23 @@ function done(orderNumber) {
 }
 
 function adminLogin(){
+  if(recoveryMode) return `<section class="f admin-login"><h2>Nueva contraseña</h2><p class="mu">Escribe tu nueva contraseña para recuperar el acceso.</p><form id="recovery-form"><label>Nueva contraseña<input id="new-password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo 6 caracteres"></label><label>Repetir contraseña<input id="new-password-2" type="password" autocomplete="new-password" minlength="6" required placeholder="Repite la contraseña"></label><div class="acts"><button class="btn" type="submit" id="recovery-submit">Guardar contraseña</button></div><p id="recovery-error" class="mu" role="alert"></p></form></section>`;
   return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta de Supabase.</p><form id="admin-login-form"><label>Correo<input id="admin-email" type="email" autocomplete="email" required placeholder="tu@correo.com"></label><label>Contraseña<input id="admin-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Tu contraseña"></label><div class="acts"><button class="btn" type="submit" id="login-submit">Entrar al panel</button><button class="btn s" type="button" id="signup-submit">Crear cuenta</button></div><button class="link-btn" type="button" id="forgot-submit">¿Olvidaste tu contraseña?</button><p id="login-error" class="mu" role="alert"></p></form></section>`;
+}
+async function bindRecovery(){
+  const form=$('#recovery-form'); if(!form||form.dataset.bound)return; form.dataset.bound='1';
+  form.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const p1=$('#new-password').value,p2=$('#new-password-2').value,error=$('#recovery-error'),button=$('#recovery-submit');
+    if(p1.length<6)return error.textContent='La contraseña debe tener al menos 6 caracteres.';
+    if(p1!==p2)return error.textContent='Las contraseñas no coinciden.';
+    button.disabled=true;button.textContent='Guardando…';error.textContent='';
+    try{
+      const {error:updateError}=await client.auth.updateUser({password:p1});
+      if(updateError)throw updateError;
+      recoveryMode=false; await client.auth.signOut(); render(); toast('Contraseña actualizada. Ya puedes iniciar sesión.');
+    }catch(errorValue){error.textContent=authErrorMessage(errorValue);button.disabled=false;button.textContent='Guardar contraseña';}
+  });
 }
 function bindAdminLogin(){
   const form=$('#admin-login-form');
@@ -866,7 +883,7 @@ function render() {
     const section = route[1] || 'dashboard';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
-    if (typeof result === 'string') bindAdminLogin();
+    if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
     else { result.after?.(); if (section === 'promociones') bindPromotions(); }
     $('#logout-button')?.addEventListener('click', () => { void signOut(); });
     return;
@@ -904,6 +921,7 @@ window.addEventListener('hashchange', handleRouteChange);
 client.auth.onAuthStateChange((event, session) => {
   setTimeout(async () => {
     const nextIsAdmin=!!session?.user;
+    if(event==='PASSWORD_RECOVERY'){recoveryMode=true;isAdmin=false;}
     if(event==='SIGNED_OUT'){isAdmin=false;S.o=[];S.promos=[];}
     else if(nextIsAdmin && !isAdmin && ready && location.hash.startsWith('#/admin')){
       isAdmin=true;

@@ -922,8 +922,12 @@ function loginOrAdminContent(section, route) {
 }
 
 const CHAT_KEY='tienda-ata-chat-v1';
+
+function chatNormalize(value){
+  return String(value||'').toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').trim();
+}
 function chatCatalogContext(){
-  const products=publishedProducts().slice(0,80).map(p=>({id:p.id,name:p.name,category:p.cat,gender:p.gender||'general',price:effectivePrice(p),stock:totalStock(p),sizes:p.sizes?Object.keys(p.sizes):[],description:p.desc||''}));
+  const products=publishedProducts().slice(0,80).map(p=>({id:p.id,name:p.name,category:p.cat,gender:p.gender||'general',price:effectivePrice(p),basePrice:Number(p.price||0),stock:totalStock(p),sizes:p.sizes?Object.entries(p.sizes).filter(([,n])=>Number(n)>0).map(([s])=>s):[],description:p.desc||'',brand:p.brand||''}));
   const promos=activePromotions().map(p=>({title:p.title,description:p.description||p.subtitle||'',discount_type:p.discount_type,discount_value:p.discount_value,target:p.target,scope:p.scope}));
   return {products,promos};
 }
@@ -931,10 +935,114 @@ function chatHistory(){
   try{const h=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');return Array.isArray(h)?h.slice(-12):[];}catch(_){return []}
 }
 function saveChatHistory(h){try{localStorage.setItem(CHAT_KEY,JSON.stringify(h.slice(-12)));}catch(_){}}
-function chatMessage(text,role){
+
+function chatMessage(text,role,products=[]){
   const box=$('#ata-chat-messages'); if(!box)return;
-  const item=document.createElement('div'); item.className='ata-msg '+role; item.textContent=text; box.append(item); box.scrollTop=box.scrollHeight;
+  const item=document.createElement('div'); item.className='ata-msg '+role;
+  const copy=document.createElement('div'); copy.textContent=text; item.append(copy);
+  if(role==='bot'&&products.length){
+    const actions=document.createElement('div'); actions.className='ata-chat-actions';
+    products.slice(0,4).forEach(p=>{
+      const button=document.createElement('button'); button.type='button'; button.className='ata-chat-product'; button.textContent='Ver '+p.name;
+      button.onclick=()=>go('#/producto/'+encodeURIComponent(p.id)); actions.append(button);
+    });
+    item.append(actions);
+  }
+  box.append(item); box.scrollTop=box.scrollHeight;
 }
+
+function chatBestMatches(query){
+  const q=chatNormalize(query);
+  const words=q.split(/\\s+/).filter(w=>w.length>2&&!['quiero','busco','tienes','tienen','hay','para','con','una','uno','los','las','del','que','por','favor','como','donde','esta','este','esta','precio','cuanto'].includes(w));
+  const products=publishedProducts();
+  return products.map(p=>{
+    const text=chatNormalize([p.name,p.brand,p.cat,GENDERS[p.gender]||'',p.desc,...(p.det?Object.values(p.det):[])].join(' '));
+    let score=0;
+    if(q&&text.includes(q))score+=12;
+    words.forEach(w=>{if(text.includes(w))score+=w.length>=5?3:2;});
+    if(F.cat&&p.cat===F.cat)score+=1;
+    return {p,score};
+  }).filter(x=>x.score>0).sort((a,b)=>b.score-a.score||Number(b.p.created_at||0)-Number(a.p.created_at||0)).map(x=>x.p);
+}
+
+function chatFormatProduct(p){
+  const stock=totalStock(p);
+  const sizes=p.sizes?Object.entries(p.sizes).filter(([,n])=>Number(n)>0).map(([s])=>s):[];
+  let line='• '+p.name+': '+money(effectivePrice(p));
+  if(Number(p.old)>Number(p.price)||effectivePrice(p)<Number(p.price))line+=' (precio con oferta)';
+  line+=stock?' · Disponible':' · Agotado';
+  if(sizes.length)line+=' · Tallas: '+sizes.join(', ');
+  return line;
+}
+
+function chatLocalReply(input){
+  const q=chatNormalize(input);
+  const products=publishedProducts();
+  const promos=activePromotions();
+  const matches=chatBestMatches(input);
+  const has=(...terms)=>terms.some(t=>q.includes(t));
+  const available=products.filter(p=>totalStock(p)>0);
+  const cheap=[...available].sort((a,b)=>effectivePrice(a)-effectivePrice(b)).slice(0,4);
+  const offerProducts=available.filter(p=>effectivePrice(p)<Number(p.price||0)||Number(p.old)>Number(p.price)).slice(0,4);
+
+  if(!q)return {reply:'Escribe qué estás buscando y te ayudo. Por ejemplo: “¿qué tienes para hombre?”, “¿qué tallas hay?”, “¿qué está en oferta?” o “busco algo de menos de $500”.'};
+  if(has('hola','buenas','hey','holi','que tal'))return {reply:'¡Hola! 👋 Soy el asistente de Tienda Ata. Puedo ayudarte con productos, precios, tallas, disponibilidad, ofertas y cómo hacer tu pedido. ¿Qué estás buscando?'};
+  if(has('gracias','muchas gracias','perfecto','excelente'))return {reply:'¡Con gusto! 👋 Si quieres, también puedo ayudarte a encontrar otra prenda o revisar tallas y disponibilidad.'};
+  if(has('ayuda','que puedes hacer','como me ayudas','que sabes'))return {reply:'Puedo ayudarte a buscar productos, comparar precios, revisar stock y tallas, encontrar ofertas, buscar por categoría o sección y explicarte cómo comprar. Prueba: “busco una playera”, “qué hay para mujer” o “cuál es el más barato”.'};
+  if(has('envio','envios','entrega','domicilio','mandan','entregan'))return {reply:'Los pedidos se registran desde el carrito. Para finalizar, agrega tus productos y proporciona nombre, teléfono y dirección de entrega. Si necesitas confirmar cobertura, costo o tiempo de entrega, revisa esa información directamente con la tienda antes de realizar el pedido.'};
+  if(has('pagar','pago','pagos','efectivo','tarjeta','transferencia'))return {reply:'Al finalizar el pedido se registran tus datos y el pedido queda pendiente de confirmar. El sitio no muestra un método de pago específico, así que para confirmar cómo pagar, consulta directamente con la tienda.'};
+  if(has('devolucion','devoluciones','cambio','cambios','reembolso','garantia'))return {reply:'No veo una política de cambios, devoluciones o reembolsos publicada en el catálogo. Para no darte información incorrecta, lo mejor es confirmarla directamente con la tienda.'};
+  if(has('comprar','pedido','pedir','carrito','como compro','como comprar')){
+    return {reply:'Es muy sencillo: 1) entra al producto, 2) elige talla si aplica, 3) toca “Agregar al carrito”, 4) abre Carrito y 5) pulsa “Finalizar pedido” para enviar nombre, teléfono y dirección. El pedido queda registrado para confirmación.'};
+  }
+  if(has('oferta','ofertas','promocion','promociones','descuento','descuentos','rebaja','rebajas')){
+    if(promos.length)return {reply:'Estas son las promociones activas que tengo registradas:'+promos.slice(0,5).map(p=>'\\n• '+p.title+(p.description?' — '+p.description:'')).join('\\n')+(offerProducts.length?'\\n\\nProductos que aparecen con precio reducido:\\n'+offerProducts.map(chatFormatProduct).join('\\n'):'') ,products:offerProducts};
+    if(offerProducts.length)return {reply:'Ahora mismo veo estos productos con precio reducido:\\n'+offerProducts.map(chatFormatProduct).join('\\n'),products:offerProducts};
+    return {reply:'No veo promociones ni productos con precio reducido en este momento.'};
+  }
+  if(has('barato','barata','baratos','baratas','economico','economica','menos de','menor a','hasta')){
+    const amount=q.match(/(?:menos de|menor a|hasta|maximo de|máximo de)\\s*\\$?([0-9][0-9,]*(?:\\.[0-9]+)?)/);
+    const list=amount?available.filter(p=>effectivePrice(p)<=Number(amount[1].replace(/,/g,''))).sort((a,b)=>effectivePrice(a)-effectivePrice(b)).slice(0,6):cheap;
+    return list.length?{reply:(amount?'Encontré opciones dentro de ese presupuesto:\\n':'Las opciones disponibles de menor precio son:\\n')+list.map(chatFormatProduct).join('\\n'),products:list}:{reply:'No encontré productos disponibles dentro de ese presupuesto.'};
+  }
+  if(has('disponible','disponibilidad','stock','agotado','talla','tallas','medida','medidas')){
+    if(matches.length){
+      const list=matches.slice(0,4);
+      return {reply:list.map(chatFormatProduct).join('\\n'),products:list};
+    }
+    return {reply:available.length?'Tengo '+available.length+' producto(s) con existencia. Dime el nombre, categoría o talla que buscas y los reviso.':'En este momento no veo productos con existencia.'};
+  }
+  if(has('hombre','caballero','masculino')){
+    const list=products.filter(p=>p.gender==='hombre');
+    return list.length?{reply:'Para hombre tengo:\\n'+list.slice(0,6).map(chatFormatProduct).join('\\n'),products:list}:{reply:'No veo productos publicados específicamente para hombre en este momento.'};
+  }
+  if(has('mujer','dama','femenino')){
+    const list=products.filter(p=>p.gender==='mujer');
+    return list.length?{reply:'Para mujer tengo:\\n'+list.slice(0,6).map(chatFormatProduct).join('\\n'),products:list}:{reply:'No veo productos publicados específicamente para mujer en este momento.'};
+  }
+  const category= CATEGORIES.find(c=>q.includes(chatNormalize(c)));
+  if(category){
+    const list=products.filter(p=>p.cat===category);
+    return list.length?{reply:'En '+category+' tengo:\\n'+list.slice(0,6).map(chatFormatProduct).join('\\n'),products:list}:{reply:'No veo productos publicados en '+category+' por ahora.'};
+  }
+  if(has('cuanto cuesta','cuanto vale','precio','precios','costo','cuesta','vale')){
+    if(matches.length){
+      const list=matches.slice(0,4);
+      return {reply:list.map(chatFormatProduct).join('\\n'),products:list};
+    }
+    return {reply:'Claro. Dime el nombre del producto que quieres consultar y te digo su precio actual.'};
+  }
+  if(has('que tienes','que hay','catalogo','catalogo','productos','prendas','ropa')){
+    const list=available.slice(0,8);
+    return list.length?{reply:'Estas son algunas opciones disponibles ahora:\\n'+list.map(chatFormatProduct).join('\\n'),products:list}:{reply:'No veo productos disponibles en este momento.'};
+  }
+  if(matches.length){
+    const list=matches.slice(0,4);
+    return {reply:'Encontré estas opciones relacionadas con lo que buscas:\\n'+list.map(chatFormatProduct).join('\\n'),products:list};
+  }
+  return {reply:'No encontré algo que coincida exactamente. Prueba con el nombre del producto, una categoría como “playeras” o “jeans”, una sección como “hombre/mujer”, o un presupuesto como “menos de $500”.'};
+}
+
 function bindChat(){
   const fab=$('#ata-chat-fab'), panel=$('#ata-chat'), close=$('#ata-chat-close'), form=$('#ata-chat-form'), input=$('#ata-chat-input');
   if(!fab||!panel||!form||!input||fab.dataset.bound)return;
@@ -951,12 +1059,13 @@ function bindChat(){
     const send=form.querySelector('button[type="submit"]'); send.disabled=true; input.disabled=true;
     const thinking=document.createElement('div'); thinking.className='ata-msg bot'; thinking.textContent='Estoy revisando la tienda…'; $('#ata-chat-messages')?.append(thinking);
     try{
-      const response=await fetch(SB_URL+'/functions/v1/tienda-assistant',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_PUBLISHABLE_KEY},body:JSON.stringify({messages:historyNow,catalog:chatCatalogContext()})});
-      const data=await response.json(); if(!response.ok)throw new Error(data.error||'No pude responder ahora.');
-      thinking.remove(); chatMessage(data.reply||'No encontré una respuesta para eso.','bot');
-      saveChatHistory([...historyNow,{role:'assistant',content:data.reply||''}]);
-    }catch(error){thinking.remove();chatMessage('No pude conectar con el asistente. Intenta de nuevo en unos segundos.','bot');console.error('Tienda Assistant:',error);}
-    finally{send.disabled=false;input.disabled=false;input.focus();}
+      await new Promise(resolve=>setTimeout(resolve,180));
+      const result=chatLocalReply(text);
+      thinking.remove(); chatMessage(result.reply,'bot',result.products||[]);
+      saveChatHistory([...historyNow,{role:'assistant',content:result.reply||''}]);
+    }catch(error){
+      thinking.remove(); chatMessage('No pude procesar esa pregunta. Intenta con el nombre del producto, categoría, precio, talla u oferta.','bot'); console.error('Tienda Assistant:',error);
+    }finally{send.disabled=false;input.disabled=false;input.focus();}
   };
 }
 

@@ -208,10 +208,20 @@ async function save() {
 function shell(content) {
   return `<header class="hd">
     <a class="brand" href="#/">Tienda Ata</a>
-    <nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito <span class="cart-pill" id="cc">${cartCount()}</span></a></nav>
+    <nav>
+      <a href="#/">Inicio</a>
+      <a href="#/catalogo">Catálogo</a>
+      <a href="#/carrito">Carrito <span class="cart-pill" id="cc">${cartCount()}</span></a>
+    </nav>
   </header>
   <main class="store-main">${content}</main>
-  <footer class="pf"><div class="pf-bottom"><span>© ${new Date().getFullYear()} Tienda Ata</span><div class="pf-nav"><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito</a><a href="#/admin">Administración</a></div></div></footer>`;
+  <footer class="pf">
+    <div class="pf-main">
+      <div><strong>Tienda Ata</strong><p>Moda, estilo y piezas seleccionadas.</p></div>
+      <div class="pf-nav"><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito</a><a href="#/admin">Administración</a></div>
+    </div>
+    <div class="pf-bottom"><span>© ${new Date().getFullYear()} Tienda Ata. Todos los derechos reservados.</span><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div>
+  </footer>`;
 }
 
 function productCard(product) {
@@ -222,14 +232,728 @@ function productCard(product) {
 function home() {
   const list = publishedProducts();
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
-  const categories = [...new Set(list.map((product) => product.cat).filter(Boolean))];
-  return `<section class="home-clean">
-    <div class="home-top"><span class="eyebrow">TIENDA ATA</span><a href="#/catalogo" class="home-link">Ver catálogo →</a></div>
+  return `<section class="store-section home-minimal">
+    <div class="minimal-head"><span>TIENDA ATA</span><a href="#/catalogo">Catálogo →</a></div>
     <div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div>
   </section>
-  <section class="store-section compact-section">
-    <div class="section-head"><h2>Categorías</h2><a href="#/catalogo">Ver todo →</a></div>
-    <div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div>
-  </section>
-  ${offers.length ? `<section class="store-section offer-block"><div class="section-head"><h2>Ofertas</h2><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
+  <section class="store-section minimal-categories"><div class="section-head"><h2>Categorías</h2><a href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
+  ${offers.length ? `<section class="store-section"><div class="section-head"><h2>Ofertas</h2><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
 }
+function filteredProducts() {
+  const query = String(F.q || '').toLowerCase();
+  return publishedProducts().filter((product) =>
+    (!query || `${product.name || ''} ${product.brand || ''} ${product.cat || ''} ${GENDERS[product.gender] || ''}`.toLowerCase().includes(query)) &&
+    (!F.gender || (product.gender || 'general') === F.gender) &&
+    (!F.cat || product.cat === F.cat) &&
+    (!F.size || (!!product.sizes && stockForSize(product, F.size) > 0)) &&
+    (!F.max || Number(product.price) <= Number(F.max)) &&
+    (!F.av || totalStock(product) > 0)
+  );
+}
+
+function renderProductList() {
+  const target = $('#lst');
+  if (!target) return;
+  const list = filteredProducts();
+  target.innerHTML = list.length
+    ? `<div class="grid">${list.map(productCard).join('')}</div>`
+    : '<p class="mu">No hay prendas con esos filtros.</p>';
+}
+
+function catalog(queryString) {
+  F = { q: queryString.get('q') || '', gender: queryString.get('genero') || '', cat: queryString.get('cat') || '', size: '', max: '', av: false };
+  const list = publishedProducts();
+  const sizes = [...new Set(list.flatMap((product) => product.sizes ? Object.keys(product.sizes) : []))];
+  return `<div class="departments"><a class="${!F.gender ? 'on' : ''}" href="#/catalogo">General</a><a class="${F.gender === 'hombre' ? 'on' : ''}" href="#/catalogo?genero=hombre">Hombre</a><a class="${F.gender === 'mujer' ? 'on' : ''}" href="#/catalogo?genero=mujer">Mujer</a></div><h1>${F.gender ? GENDERS[F.gender] : 'Catálogo general'}</h1><form class="flt" id="ff" oninput="filt()" onsubmit="return false"><label>Buscar<input name="q" value="${esc(F.q)}"></label><label>Sección<select name="gender"><option value="">General</option>${Object.entries(GENDERS).filter(([key])=>key!=='general').map(([key,label])=>`<option value="${key}" ${key === F.gender ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>Categoría<select name="cat"><option value="">Todas</option>${CATEGORIES.map((category) => `<option value="${esc(category)}" ${category === F.cat ? 'selected' : ''}>${esc(category)}</option>`).join('')}</select></label><label>Talla<select name="size"><option value="">Todas</option>${sizes.map((size) => `<option value="${esc(size)}">${esc(size)}</option>`).join('')}</select></label><label>Precio máximo<input name="max" type="number" min="0"></label><label class="ck"><input name="av" type="checkbox">Solo disponibles</label></form><div id="lst"></div>`;
+}
+
+function filt() {
+  const form = $('#ff');
+  if (!form) return;
+  F = { q: form.q.value, gender: form.gender.value, cat: form.cat.value, size: form.size.value, max: Number(form.max.value) || '', av: form.av.checked };
+  renderProductList();
+}
+
+function gallery(product) {
+  const photos = (product.photos || []).length ? product.photos : [''];
+  const multiple = photos.length > 1;
+  return `<div class="gal"><div class="track">${photos.map((source) => `<div class="sl">${im(source, product.name)}</div>`).join('')}</div>${multiple ? `<button class="gb l" data-d="-1">Anterior</button><button class="gb r" data-d="1">Siguiente</button><span class="cnt">1 de ${photos.length}</span>` : ''}</div>${multiple ? `<div class="th">${photos.map((source, index) => `<button data-i="${index}" aria-label="Foto ${index + 1}">${im(source, product.name)}</button>`).join('')}</div>` : ''}`;
+}
+
+function bindGallery(root) {
+  const track = $('.track', root);
+  if (!track) return;
+  const counter = $('.cnt', root);
+  const width = () => track.clientWidth || 1;
+  track.onscroll = () => { if (counter) counter.textContent = `${Math.round(track.scrollLeft / width()) + 1} de ${track.children.length}`; };
+  $$('.gb', root).forEach((button) => button.onclick = () => track.scrollBy({ left: width() * Number(button.dataset.d), behavior: 'smooth' }));
+  $$('.th button', root).forEach((button) => button.onclick = () => track.scrollTo({ left: width() * Number(button.dataset.i), behavior: 'smooth' }));
+}
+
+function productView(product, preview = false) {
+  if (!product || (!preview && product.status !== 'published')) return '<p>No encontramos este producto. <a href="#/catalogo">Ver catálogo</a></p>';
+  const details = Object.entries(product.det || {}).filter(([, value]) => value);
+  const labels = { color: 'Color', material: 'Material', fit: 'Corte', cond: 'Condición' };
+  const sizes = product.sizes;
+  return `<div class="pd"><div>${gallery(product)}</div><div><div class="mu">${esc(product.brand || '')}</div><h1>${esc(product.name || 'Sin nombre')}</h1><div>${product.price !== '' ? productPrice(product) : ''}</div>
+    ${sizes ? `<div class="sizes">${Object.entries(sizes).map(([size, amount]) => `<button class="sz" data-s="${esc(size)}" ${amount ? '' : 'disabled title="Agotada"'}>${esc(size)}</button>`).join('')}</div><div class="av mu">Elige una talla</div>` : `<div class="av mu">${product.stock ? `Disponible: ${Number(product.stock)}` : 'Agotado'}</div>`}
+    <div class="acts"><button class="btn add" ${preview || !totalStock(product) ? 'disabled' : ''}>Agregar al carrito</button><button class="btn s buy" ${preview || !totalStock(product) ? 'disabled' : ''}>Comprar ahora</button></div>
+    <p>${esc(product.desc || '')}</p>${details.length ? `<p class="mu">${details.map(([key, value]) => `${labels[key] || esc(key)}: ${esc(value)}`).join(' · ')}</p>` : ''}</div></div>`;
+}
+
+function bindProduct(root, product) {
+  let selectedSize = null;
+  const availability = $('.av', root);
+  $$('.sz', root).forEach((button) => button.onclick = () => {
+    selectedSize = button.dataset.s;
+    $$('.sz', root).forEach((item) => item.classList.toggle('on', item === button));
+    availability.textContent = `Disponible: ${stockForSize(product, selectedSize)}`;
+  });
+  const add = () => {
+    if (product.sizes && !selectedSize) return toast('Elige una talla'), false;
+    const available = stockForSize(product, selectedSize || '');
+    if (!available) return toast('Agotado'), false;
+    const item = S.c.find((entry) => entry.pid === product.id && entry.size === (selectedSize || ''));
+    if (item) {
+      if (item.qty >= available) return toast('No hay más existencias'), false;
+      item.qty++;
+    } else {
+      S.c.push({ pid: product.id, size: selectedSize || '', qty: 1 });
+    }
+    void save();
+    $('#cc').textContent = cartCount();
+    toast('Agregado al carrito');
+    return true;
+  };
+  $('.add', root).onclick = add;
+  $('.buy', root).onclick = () => add() && go('#/carrito');
+}
+
+function cart() {
+  const rows = cartRows();
+  if (!rows.length) return '<h1>Carrito</h1><p class="mu">Tu carrito está vacío.</p><a class="btn" href="#/catalogo">Ver catálogo</a>';
+  return `<h1>Carrito</h1>${rows.map(({ item, index, product }) => `<div class="ci">${im((product.photos || [])[0], product.name)}<div><b>${esc(product.name)}</b><div class="mu">${item.size ? `Talla ${esc(item.size)} · ` : ''}${money(effectivePrice(product))}</div></div><div class="row"><button class="btn s sm" onclick="cq(${index},-1)" aria-label="Menos">−</button>${item.qty}<button class="btn s sm" onclick="cq(${index},1)" aria-label="Más">+</button></div><button class="btn s sm" onclick="cr(${index})">Quitar</button></div>`).join('')}<h2>Total: ${money(cartTotal())}</h2><a class="btn" href="#/pedido">Continuar con el pedido</a>`;
+}
+
+function cq(index, delta) {
+  const item = S.c[index];
+  const product = S.p.find((candidate) => candidate.id === item?.pid);
+  if (!item || !product) return;
+  const next = item.qty + delta;
+  if (next < 1) return;
+  if (next > stockForSize(product, item.size)) return toast('No hay más existencias');
+  item.qty = next;
+  void save().then(render);
+}
+
+function cr(index) {
+  S.c.splice(index, 1);
+  void save().then(render);
+}
+
+const ORDER_NOTE = '';
+function checkout() {
+  if (!cartRows().length) return '<p>Tu carrito está vacío. <a href="#/catalogo">Ver catálogo</a></p>';
+  return `<h1>Finalizar pedido</h1>${ORDER_NOTE}<form id="checkout-form"><label>Nombre<input name="name" autocomplete="name" required maxlength="120"></label><label>Teléfono<input name="phone" type="tel" autocomplete="tel" required maxlength="40"></label><label>Dirección de entrega<textarea name="addr" autocomplete="street-address" required maxlength="500"></textarea></label><label>Notas (opcional)<textarea name="notes" maxlength="1000"></textarea></label><h2>Total: ${money(cartTotal())}</h2><button class="btn" id="cb">Confirmar pedido</button></form>`;
+}
+
+async function placeOrder(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const rows = cartRows();
+  if (!rows.length) return toast('Tu carrito está vacío.');
+  const button = $('#cb');
+  if (button?.disabled) return;
+  if (button) { button.disabled = true; button.textContent = 'Enviando…'; }
+
+  const order = {
+    date: new Date().toISOString(),
+    name: form.elements.name.value.trim(),
+    phone: form.elements.phone.value.trim(),
+    addr: form.elements.addr.value.trim(),
+    notes: form.elements.notes.value.trim(),
+    status: ORDER_STATUSES[0],
+    items: rows.map(({ item, product }) => ({
+      pid: product.id,
+      name: product.name,
+      size: item.size,
+      qty: item.qty,
+      price: effectivePrice(product)
+    }))
+  };
+
+  try {
+    const { data, error } = await client.rpc('crear_pedido', { p: order });
+    if (error) throw error;
+    const orderNumber = Number(data);
+    S.c = [];
+    try { await loadProducts(); }
+    catch (reloadError) { console.warn('Pedido creado; no se actualizó el catálogo local:', reloadError); }
+    await save();
+    $('#cc') && ($('#cc').textContent = '0');
+    go(`#/confirmacion/${encodeURIComponent(orderNumber)}`);
+  } catch (error) {
+    console.error('No se pudo registrar el pedido:', error);
+    if (button) { button.disabled = false; button.textContent = 'Confirmar pedido'; }
+    toast(error.message?.includes('Sin existencias') ? 'El inventario cambió. Revisa tu carrito.' : 'No se pudo registrar el pedido. Inténtalo de nuevo.');
+  }
+}
+
+function done(orderNumber) {
+  return `<h1>Pedido #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido quedó registrado correctamente.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
+}
+
+function adminLogin(){
+  if(recoveryMode) return `<section class="f admin-login"><h2>Nueva contraseña</h2><p class="mu">Escribe tu nueva contraseña para recuperar el acceso.</p><form id="recovery-form"><label>Nueva contraseña<input id="new-password" type="password" autocomplete="new-password" minlength="6" required placeholder="Mínimo 6 caracteres"></label><label>Repetir contraseña<input id="new-password-2" type="password" autocomplete="new-password" minlength="6" required placeholder="Repite la contraseña"></label><div class="acts"><button class="btn" type="submit" id="recovery-submit">Guardar contraseña</button></div><p id="recovery-error" class="mu" role="alert"></p></form></section>`;
+  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta de Supabase.</p><form id="admin-login-form"><label>Correo<input id="admin-email" type="email" autocomplete="email" required placeholder="tu@correo.com"></label><label>Contraseña<input id="admin-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Tu contraseña"></label><div class="acts"><button class="btn" type="submit" id="login-submit">Entrar al panel</button><button class="btn s" type="button" id="signup-submit">Crear cuenta</button></div><button class="link-btn" type="button" id="forgot-submit">¿Olvidaste tu contraseña?</button><p id="login-error" class="mu" role="alert"></p></form></section>`;
+}
+async function bindRecovery(){
+  const form=$('#recovery-form'); if(!form||form.dataset.bound)return; form.dataset.bound='1';
+  form.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const p1=$('#new-password').value,p2=$('#new-password-2').value,error=$('#recovery-error'),button=$('#recovery-submit');
+    if(p1.length<6)return error.textContent='La contraseña debe tener al menos 6 caracteres.';
+    if(p1!==p2)return error.textContent='Las contraseñas no coinciden.';
+    button.disabled=true;button.textContent='Guardando…';error.textContent='';
+    try{
+      const {error:updateError}=await client.auth.updateUser({password:p1});
+      if(updateError)throw updateError;
+      recoveryMode=false; await client.auth.signOut(); render(); toast('Contraseña actualizada. Ya puedes iniciar sesión.');
+    }catch(errorValue){error.textContent=authErrorMessage(errorValue);button.disabled=false;button.textContent='Guardar contraseña';}
+  });
+}
+function bindAdminLogin(){
+  const form=$('#admin-login-form');
+  if(!form || form.dataset.bound)return;
+  form.dataset.bound='1';
+  const emailInput=$('#admin-email'), passwordInput=$('#admin-password'), error=$('#login-error');
+  const loginButton=$('#login-submit'), signupButton=$('#signup-submit'), forgotButton=$('#forgot-submit');
+  form.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const email=emailInput.value.trim(),password=passwordInput.value;
+    if(!email||!password)return;
+    loginButton.disabled=true;signupButton.disabled=true;loginButton.textContent='Verificando…';error.textContent='';
+    try{
+      const {data,error:authError}=await client.auth.signInWithPassword({email,password});
+      if(authError)throw authError;
+      if(!data.session)throw new Error('No se pudo iniciar la sesión.');
+      isAdmin=true;
+      await loadProducts();await loadOrders();await loadPromotions();
+      render();toast('Sesión iniciada.');
+    }catch(errorValue){
+      isAdmin=false;
+      error.textContent=authErrorMessage(errorValue);
+      loginButton.disabled=false;signupButton.disabled=false;loginButton.textContent='Entrar al panel';
+    }
+  });
+  forgotButton?.addEventListener('click',async()=>{
+    const email=emailInput.value.trim();
+    if(!email)return error.textContent='Escribe tu correo para enviarte el enlace de recuperación.';
+    loginButton.disabled=true;signupButton.disabled=true;forgotButton.disabled=true;error.textContent='';forgotButton.textContent='Enviando…';
+    try{
+      const {error:resetError}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname+'#/admin'});
+      if(resetError)throw resetError;
+      error.textContent='Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo.';
+    }catch(errorValue){error.textContent=authErrorMessage(errorValue);}
+    finally{loginButton.disabled=false;signupButton.disabled=false;forgotButton.disabled=false;forgotButton.textContent='¿Olvidaste tu contraseña?';}
+  });
+  signupButton.addEventListener('click',async()=>{
+    const email=emailInput.value.trim(),password=passwordInput.value;
+    if(!email)return error.textContent='Escribe tu correo.';
+    if(password.length<6)return error.textContent='La contraseña debe tener al menos 6 caracteres.';
+    loginButton.disabled=true;signupButton.disabled=true;signupButton.textContent='Creando…';error.textContent='';
+    try{
+      const {data,error:authError}=await client.auth.signUp({email,password});
+      if(authError)throw authError;
+      if(data.session){
+        isAdmin=true;await loadProducts();await loadOrders();await loadPromotions();render();toast('Cuenta creada y sesión iniciada.');
+      }else{
+        error.textContent='Cuenta creada. Revisa tu correo para confirmar la cuenta y después inicia sesión.';
+        loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
+      }
+    }catch(errorValue){
+      error.textContent=authErrorMessage(errorValue);
+      loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
+    }
+  });
+}
+function authErrorMessage(errorValue){
+  const message=String(errorValue?.message||'No se pudo autenticar.');
+  if(/invalid login credentials/i.test(message))return 'Correo o contraseña incorrectos.';
+  if(/email not confirmed/i.test(message))return 'Confirma tu correo antes de iniciar sesión.';
+  return message;
+}
+async function verifyAdminSession(){
+  if(authChecking)return;
+  authChecking=true;
+  render();
+  try{
+    const user=await currentUser();
+    isAdmin=!!user;
+    if(isAdmin){await loadProducts();await loadOrders();await loadPromotions();}
+  }catch(error){
+    console.error('No se pudo verificar la sesión:',error);
+    isAdmin=false;S.o=[];S.promos=[];
+  }finally{authChecking=false;render();}
+}
+async function signOut(){
+  const {error}=await client.auth.signOut();
+  if(error){toast('No se pudo cerrar sesión.');return;}
+  isAdmin=false;S.o=[];S.promos=[];
+  try{await loadProducts();await loadPromotions();}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
+  render();toast('Sesión cerrada.');
+}
+
+function dashboard() {
+  const pending=S.o.filter((o)=>o.status==='Pendiente de confirmar').length;
+  const confirmed=S.o.filter((o)=>o.status==='Confirmado'||o.status==='Preparando'||o.status==='Enviado').length;
+  const delivered=S.o.filter((o)=>o.status==='Entregado').length;
+  const cancelled=S.o.filter((o)=>o.status==='Cancelado').length;
+  const revenue=S.o.filter((o)=>o.status!=='Cancelado').reduce((sum,o)=>sum+orderTotal(o),0);
+  const low=S.p.filter((p)=>totalStock(p)>0&&totalStock(p)<=2).length;
+  const out=S.p.filter((p)=>totalStock(p)<=0).length;
+  const published=S.p.filter((p)=>p.status==='published').length;
+  return `<h2>Resumen de la tienda</h2><div class="dash-grid">
+    <a class="f stat" href="#/admin/pedidos"><b>${S.o.length}</b><span>Pedidos totales</span></a>
+    <a class="f stat" href="#/admin/pedidos"><b>${pending}</b><span>Por confirmar</span></a>
+    <a class="f stat" href="#/admin/inventario"><b>${low}</b><span>Stock bajo</span></a>
+    <a class="f stat" href="#/admin/inventario"><b>${out}</b><span>Agotados</span></a>
+    <a class="f stat" href="#/admin/productos"><b>${published}</b><span>Publicados</span></a>
+    <div class="f stat"><b>${money(revenue)}</b><span>Ventas registradas*</span></div>
+  </div><section class="f"><h2>Estado de pedidos</h2><p>Confirmados/en proceso: <b>${confirmed}</b> · Entregados: <b>${delivered}</b> · Cancelados: <b>${cancelled}</b></p><p class="mu">* Total de pedidos no cancelados; no significa necesariamente pagos cobrados.</p></section>
+  <section class="f"><h2>Acciones rápidas</h2><div class="row"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><a class="btn s" href="#/admin/pedidos">Ver pedidos</a><a class="btn s" href="#/admin/promociones">Nueva promoción</a><button class="btn s" onclick="exportOrders()">Exportar pedidos CSV</button></div></section>`;
+}
+function adminShell(section, content) {
+  const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
+  return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
+}
+
+function orders(query = '') {
+  return `<div class="row"><input id="oq" value="${esc(query)}" placeholder="Buscar por pedido, cliente, teléfono o estado" oninput="refreshOrderList()" style="flex:1"><button class="btn s" type="button" onclick="exportOrders()">Exportar CSV</button></div><div id="ol" style="margin-top:10px">${orderTable(S.o.filter((order)=>!query||`${order.n} ${order.name||''} ${order.phone||''} ${order.status||''}`.toLowerCase().includes(query.toLowerCase())) )}</div>`;
+}
+function orderTable(list) {
+  return list.length
+    ? `<table><thead><tr><th>N.º</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((order) => `<tr><td>#${esc(order.n)}</td><td>${esc(order.name)}</td><td>${money(orderTotal(order))}</td><td>${esc(order.status)}</td><td><a class="btn s sm" href="#/admin/pedido/${encodeURIComponent(order.n)}">Abrir</a></td></tr>`).join('')}</tbody></table>`
+    : '<p class="mu">No hay pedidos que coincidan.</p>';
+}
+function refreshOrderList() {
+  const input=$('#oq'); const host=$('#ol'); if(host){const q=input?.value.trim().toLowerCase()||'';host.innerHTML=orderTable(S.o.filter((o)=>!q||`${o.n} ${o.name||''} ${o.phone||''} ${o.status||''}`.toLowerCase().includes(q)));}
+}
+function exportOrders() {
+  if(!S.o.length)return toast('No hay pedidos para exportar.');
+  const rows=[['Pedido','Fecha','Cliente','Teléfono','Estado','Total'],...S.o.map((o)=>[o.n,o.date||'',o.name||'',o.phone||'',o.status||'',orderTotal(o).toFixed(2)])];
+  const csv='\uFEFF'+rows.map((row)=>row.map((v)=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='pedidos-tienda-ata.csv';link.click();URL.revokeObjectURL(url);toast('Pedidos exportados.');
+}
+
+function orderDetail(number) {
+  const order = S.o.find((item) => String(item.n) === String(number));
+  if (!order) return '<p>Pedido no encontrado.</p>';
+  const date = order.date ? new Date(order.date).toLocaleString('es-MX') : '';
+  return `<a href="#/admin/pedidos">← Pedidos</a><h2>Pedido #${esc(order.n)}</h2><p class="mu">${esc(date)}</p><label>Estado<select id="order-status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? 'selected' : ''}>${esc(status)}</option>`).join('')}</select></label>
+    <table><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th></tr></thead><tbody>${(order.items || []).map((item) => `<tr><td>${esc(item.name)}</td><td>${esc(item.size || '—')}</td><td>${esc(item.qty)}</td><td>${money(item.price)}</td></tr>`).join('')}</tbody></table><h3 style="margin-top:12px">Total: ${money(orderTotal(order))}</h3>
+    <p><b>Nombre:</b> ${esc(order.name)}<br><b>Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Notas:</b> ${esc(order.notes || '—')}</p>`;
+}
+
+async function setSt(number,status){
+  const order=S.o.find(item=>String(item.n)===String(number));if(!order)return;
+  const old=order.status;order.status=status;const {n,...payload}=order;
+  try{
+    await requireAuthenticatedUser();
+    const {error}=await client.from('orders').update({data:payload}).eq('n',number);
+    if(error)throw error;
+    toast('Estado actualizado.');
+  }catch(_){order.status=old;render();toast('No se pudo actualizar el estado del pedido.');}
+}
+
+function productList(query = '') {
+  const text = query.toLowerCase();
+  const list = S.p.filter((product) => !text || `${product.name || ''}${product.brand || ''}${product.cat || ''}`.toLowerCase().includes(text));
+  if (!list.length) return '<p class="mu">No hay productos.</p>';
+  return `<table><thead><tr><th></th><th>Producto</th><th>Precio</th><th>Tallas y stock</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((product) => `<tr><td>${im((product.photos || [])[0], product.name, 'thm')}</td><td>${esc(product.name)}</td><td>${money(product.price)}</td><td>${product.sizes ? Object.entries(product.sizes).map(([size, amount]) => `${esc(size)}: ${esc(amount)}`).join(', ') : `Stock: ${esc(product.stock)}`}</td><td><span class="tag">${esc(STATUS[product.status] || 'Borrador')}</span>${totalStock(product) ? '' : '<span class="tag r">Agotado</span>'}</td><td><div class="row"><a class="btn s sm" href="#/admin/producto/${encodeURIComponent(product.id)}">Editar</a><button class="btn s sm" onclick="dup('${esc(product.id)}')">Duplicar</button><button class="btn s sm" onclick="tgl('${esc(product.id)}')">${product.status === 'published' ? 'Ocultar' : 'Publicar'}</button><button class="btn d sm" onclick="del('${esc(product.id)}')">Eliminar</button></div></td></tr>`).join('')}</tbody></table>`;
+}
+
+function products() {
+  return `<div class="row"><input id="pq" placeholder="Buscar producto" oninput="$('#pl').innerHTML=productList(this.value)" style="flex:1"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a></div><div id="pl" style="margin-top:10px">${productList()}</div>`;
+}
+
+function refreshProductList() {
+  const query = $('#pq');
+  const list = $('#pl');
+  if (list) list.innerHTML = productList(query?.value || '');
+}
+
+async function dup(id) {
+  const original = S.p.find((product) => product.id === id);
+  if (!original) return;
+  const copy = structuredClone(original);
+  copy.id = 'p' + Date.now();
+  copy.name += ' (copia)';
+  copy.status = 'draft';
+  copy.isDemo = false;
+  S.p.push(copy);
+  if (await save()) { refreshProductList(); toast('Borrador creado.'); }
+}
+
+async function tgl(id) {
+  const product = S.p.find((item) => item.id === id);
+  if (!product) return;
+  product.status = product.status === 'published' ? 'hidden' : 'published';
+  if (await save()) refreshProductList();
+}
+
+async function del(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  S.p = S.p.filter((product) => product.id !== id);
+  if (await save()) { refreshProductList(); toast('Producto eliminado.'); }
+}
+
+async function delDemo() {
+  const count = S.p.filter((product) => product.isDemo).length;
+  if (!count) return toast('No hay productos de ejemplo.');
+  if (!confirm(`Se eliminarán ${count} productos de ejemplo. Los que creaste tú y los pedidos se conservan. ¿Continuar?`)) return;
+  S.p = S.p.filter((product) => !product.isDemo);
+  if (await save()) { refreshProductList(); toast('Productos de ejemplo eliminados.'); }
+}
+
+async function setStk(id, size, value) {
+  const product = S.p.find((item) => item.id === id);
+  if (!product) return;
+  const quantity = Math.max(0, Math.floor(Number(value) || 0));
+  if (product.sizes) product.sizes[size] = quantity;
+  else product.stock = quantity;
+  if (await save()) { render(); toast('Cantidad guardada.'); }
+}
+
+function inventory() {
+  return `<table><thead><tr><th>Producto</th><th>Talla</th><th>Cantidad</th></tr></thead><tbody>${S.p.flatMap((product) => (product.sizes ? Object.keys(product.sizes) : ['']).map((size) => `<tr><td>${esc(product.name)}</td><td>${esc(size || '—')}</td><td><input type="number" min="0" class="${stockForSize(product, size) <= 2 ? 'low' : ''}" value="${stockForSize(product, size)}" aria-label="Cantidad de ${esc(product.name)} ${esc(size)}" onchange="setStk('${esc(product.id)}','${esc(size)}',this.value)"></td></tr>`)).join('')}</tbody></table>`;
+}
+
+function promoTargetOptions(scope, selected = '') {
+  const values = scope === 'category'
+    ? [...new Set(S.p.map((product) => product.cat).filter(Boolean))].map((value) => ({ value, label: value }))
+    : scope === 'product'
+      ? S.p.map((product) => ({ value: product.id, label: product.name || product.id }))
+      : [];
+  return values.map((item) => `<option value="${esc(item.value)}" ${item.value === selected ? 'selected' : ''}>${esc(item.label)}</option>`).join('');
+}
+function promotions() {
+  const list = S.promos || [];
+  return `<section class="f promo-editor"><h2>Promociones y descuentos</h2><p class="mu">Crea descuentos por porcentaje o cantidad fija y aplícalos a toda la tienda, una categoría o un producto.</p>
+    <div class="row"><label>Nombre<input id="promo-title" placeholder="Ej. Fin de temporada"></label><label>Etiqueta<input id="promo-badge" value="Oferta" placeholder="Ej. -30%"></label></div>
+    <label>Mensaje<input id="promo-subtitle" placeholder="Ej. Hasta 30% de descuento en seleccionados"></label>
+    <div class="row"><label>Tipo<select id="promo-type"><option value="percent">Porcentaje (%)</option><option value="amount">Cantidad fija ($)</option></select></label><label>Descuento<input id="promo-value" type="number" min="0" step="0.01" placeholder="30"></label></div>
+    <div class="row"><label>Aplicar a<select id="promo-scope"><option value="all">Toda la tienda</option><option value="category">Una categoría</option><option value="product">Un producto</option></select></label><label id="promo-target-wrap">Categoría<select id="promo-target"><option value="">Selecciona</option>${promoTargetOptions('category')}</select></label></div>
+    <div class="row"><label>Desde<input id="promo-start" type="datetime-local"></label><label>Hasta<input id="promo-end" type="datetime-local"></label></div>
+    <label class="ck"><input id="promo-active" type="checkbox" checked> Activa</label>
+    <div class="acts"><button class="btn" id="promo-save">Crear promoción</button></div>
+  </section>
+  <section class="f"><h2>Promociones guardadas</h2>${list.length ? list.map((promo) => {
+    const active = promo.active && (!promo.starts_at || new Date(promo.starts_at) <= new Date()) && (!promo.ends_at || new Date(promo.ends_at) >= new Date());
+    const discount = promo.discount_type === 'percent' ? `${Number(promo.discount_value)}%` : money(promo.discount_value);
+    const target = promo.scope === 'all' ? 'Toda la tienda' : promo.scope === 'category' ? `Categoría: ${promo.target}` : `Producto: ${S.p.find((p) => p.id === promo.target)?.name || promo.target}`;
+    return `<div class="promo-row"><div><strong>${esc(promo.title)}</strong><span class="tag">${esc(promo.badge || 'Oferta')}</span><div class="mu">${esc(promo.subtitle || '')} · ${esc(discount)} · ${esc(target)} · ${active ? 'Activa' : 'Inactiva'}</div></div><div class="row"><button class="btn s sm" onclick="togglePromo('${esc(promo.id)}')">${promo.active ? 'Desactivar' : 'Activar'}</button><button class="btn d sm" onclick="deletePromo('${esc(promo.id)}')">Eliminar</button></div></div>`;
+  }).join('') : '<p class="mu">Todavía no hay promociones.</p>'}</section>`;
+}
+function bindPromotions() {
+  const scope = $('#promo-scope'), targetWrap = $('#promo-target-wrap');
+  const updateTarget = () => {
+    const value = scope.value;
+    if (value === 'all') {
+      targetWrap.innerHTML = '<span class="mu" style="padding-top:28px">Se aplicará a todos los productos publicados.</span>';
+      return;
+    }
+    targetWrap.innerHTML = `<label>${value === 'category' ? 'Categoría' : 'Producto'}<select id="promo-target"><option value="">Selecciona</option>${promoTargetOptions(value)}</select></label>`;
+  };
+  scope?.addEventListener('change', updateTarget);
+  updateTarget();
+  $('#promo-save')?.addEventListener('click', async () => {
+    const title = $('#promo-title')?.value.trim();
+    const value = Number($('#promo-value')?.value || 0);
+    const currentScope = $('#promo-scope')?.value || 'all';
+    const target = currentScope === 'all' ? '' : ($('#promo-target')?.value || '');
+    if (!title) return toast('Escribe un nombre para la promoción.');
+    if (value <= 0) return toast('Indica un descuento mayor que 0.');
+    if (currentScope !== 'all' && !target) return toast('Selecciona dónde aplicar la promoción.');
+    if ($('#promo-type')?.value === 'percent' && value > 100) return toast('El porcentaje no puede superar 100%.');
+    const row = { id: 'promo_' + Date.now(), title, subtitle: $('#promo-subtitle')?.value.trim() || '', badge: $('#promo-badge')?.value.trim() || 'Oferta', discount_type: $('#promo-type')?.value || 'percent', discount_value: value, scope: currentScope, target, starts_at: $('#promo-start')?.value ? new Date($('#promo-start').value).toISOString() : null, ends_at: $('#promo-end')?.value ? new Date($('#promo-end').value).toISOString() : null, active: $('#promo-active')?.checked !== false, priority: 0 };
+    if (row.starts_at && row.ends_at && new Date(row.ends_at) < new Date(row.starts_at)) return toast('La fecha final debe ser posterior a la inicial.');
+    const button = $('#promo-save'); if (button) { button.disabled = true; button.textContent = 'Guardando…'; }
+    try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').upsert(row,{onConflict:'id'}); if(error)throw error; await loadPromotions(); toast('Promoción creada.'); render(); }
+    catch (error) { toast(error.message || 'No se pudo guardar la promoción.'); if (button) { button.disabled = false; button.textContent = 'Crear promoción'; } }
+  });
+}
+async function togglePromo(id) {
+  const promo = S.promos.find((item) => item.id === id); if (!promo) return;
+  try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').update({active:!promo.active}).eq('id',id); if(error)throw error; await loadPromotions(); render(); }
+  catch (error) { toast(error.message || 'No se pudo actualizar la promoción.'); }
+}
+async function deletePromo(id) {
+  if (!confirm('¿Eliminar esta promoción?')) return;
+  try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').delete().eq('id',id); if(error)throw error; await loadPromotions(); render(); toast('Promoción eliminada.'); }
+  catch (error) { toast(error.message || 'No se pudo eliminar la promoción.'); }
+}
+
+function blankProduct() {
+  return { id: 'p' + Date.now(), name: '', brand: '', gender: 'general', cat: '', price: '', old: '', desc: '', photos: [], sizes: { S: 0, M: 0, L: 0 }, stock: 0, status: 'draft', isDemo: false, det: {} };
+}
+
+function editor(id) {
+  ed = id === 'nuevo' ? blankProduct() : structuredClone(S.p.find((product) => product.id === id) || blankProduct());
+  dirty = false;
+  return `<h2>${id === 'nuevo' ? 'Nuevo producto' : 'Editar producto'}</h2><section class="f"><h3>Fotos</h3><div id="ph"></div></section>
+    <section class="f"><h3>Nombre, sección y categoría</h3><label>Nombre<input data-f="name" required></label><label>Marca (opcional)<input data-f="brand"></label><div class="row"><label>Sección<select data-f="gender"><option value="general">General</option><option value="hombre">Hombre</option><option value="mujer">Mujer</option></select></label><label>Categoría<select data-f="cat"><option value="">Selecciona una categoría</option>${CATEGORIES.map((category) => `<option value="${esc(category)}">${esc(category)}</option>`).join('')}</select></label></div></section>
+    <section class="f"><h3>Precio y precio anterior</h3><div class="row"><label>Precio (MXN)<input data-f="price" type="number" min="0"></label><label>Precio anterior (opcional)<input data-f="old" type="number" min="0"></label></div></section>
+    <section class="f"><h3>Tallas y stock</h3><div id="sz"></div></section><section class="f"><h3>Descripción</h3><textarea data-f="desc" rows="3" style="width:100%"></textarea></section>
+    <details class="f"><summary>Detalles opcionales</summary><label>Color<input data-d="color"></label><label>Material<input data-d="material"></label><label>Corte o ajuste<input data-d="fit"></label><label>Condición<input data-d="cond"></label></details>
+    <div class="bar"><button class="btn s" id="bd" onclick="saveP('draft')">Guardar borrador</button><button class="btn s" onclick="openPv()">Vista previa</button><button class="btn" id="bp" onclick="saveP('published')">Publicar</button></div>`;
+}
+
+function bindEditor() {
+  $$('[data-f]').forEach((element) => {
+    const field = element.dataset.f;
+    element.value = ed[field] ?? '';
+    element.oninput = () => { ed[field] = element.type === 'number' ? (element.value === '' ? '' : Number(element.value)) : element.value; dirty = true; };
+  });
+  $$('[data-d]').forEach((element) => {
+    const field = element.dataset.d;
+    element.value = ed.det[field] || '';
+    element.oninput = () => { ed.det[field] = element.value; dirty = true; };
+  });
+  renderPhotos();
+  renderSizes();
+}
+
+function resizeImage(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      const ratio = Math.min(1, 800 / Math.max(image.width, image.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * ratio));
+      canvas.height = Math.max(1, Math.round(image.height * ratio));
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#fff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('No se pudo procesar la imagen.')), 'image/jpeg', 0.78);
+    };
+    image.onerror = () => { URL.revokeObjectURL(url); reject(new Error('La imagen no se pudo leer.')); };
+    image.src = url;
+  });
+}
+
+async function uploadPhoto(file){
+  if(!isAdmin)throw new Error('Inicia sesión como administrador para subir fotos.');
+  if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');
+  await requireAuthenticatedUser();
+  const blob=await resizeImage(file);
+  const name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`;
+  const {error}=await client.storage.from('fotos').upload(name,blob,{contentType:'image/jpeg',upsert:false});
+  if(error)throw error;
+  const {data}=client.storage.from('fotos').getPublicUrl(name);
+  return data.publicUrl;
+}
+
+async function addPhotos(files, replaceAt = null) {
+  const accepted = [...files].filter((file) => file.type.startsWith('image/'));
+  if (!accepted.length) return;
+  const button = $('#af');
+  if (button) { button.disabled = true; button.textContent = 'Subiendo…'; }
+  try {
+    if (replaceAt !== null) {
+      ed.photos[replaceAt] = await uploadPhoto(accepted[0]);
+    } else {
+      for (const file of accepted) {
+        if (ed.photos.length >= 6) { toast('Puedes agregar hasta 6 fotos.'); break; }
+        ed.photos.push(await uploadPhoto(file));
+      }
+    }
+    dirty = true;
+    renderPhotos();
+  } catch (error) {
+    console.error('No se pudo subir la imagen:', error);
+    toast(error.message || 'No se pudo subir la imagen.');
+    renderPhotos();
+  }
+}
+
+function renderPhotos() {
+  const host = $('#ph');
+  if (!host || !ed) return;
+  const photos = ed.photos || [];
+  host.innerHTML = `<div class="dz" id="dz"><button class="btn s" id="af">Agregar fotos</button><span class="mu">o arrástralas aquí</span><b>${photos.length} de 6</b><input id="fi" type="file" accept="image/*" multiple hidden></div><div class="tl">${photos.map((source, index) => `<div class="tn"><span class="nm">${index + 1}</span>${index ? '' : '<i>Portada</i>'}${im(source, ed.name || 'Producto')}<div class="ac"><button data-a="l" data-i="${index}" ${index ? '' : 'disabled'} title="Mover antes">‹</button><button data-a="r" data-i="${index}" ${index < photos.length - 1 ? '' : 'disabled'} title="Mover después">›</button>${index ? `<button data-a="c" data-i="${index}">Portada</button>` : ''}<button data-a="s" data-i="${index}">Cambiar</button><button data-a="q" data-i="${index}">Quitar</button></div></div>`).join('')}</div>`;
+  const fileInput = $('#fi');
+  const dropZone = $('#dz');
+  $('#af').onclick = () => fileInput.click();
+  fileInput.onchange = () => { void addPhotos(fileInput.files); fileInput.value = ''; };
+  dropZone.ondragover = (event) => { event.preventDefault(); dropZone.classList.add('o'); };
+  dropZone.ondragleave = () => dropZone.classList.remove('o');
+  dropZone.ondrop = (event) => { event.preventDefault(); dropZone.classList.remove('o'); void addPhotos(event.dataTransfer.files); };
+  $$('.ac button', host).forEach((button) => button.onclick = () => {
+    const index = Number(button.dataset.i);
+    const action = button.dataset.a;
+    dirty = true;
+    if (action === 'l' || action === 'r') {
+      const next = action === 'l' ? index - 1 : index + 1;
+      [photos[index], photos[next]] = [photos[next], photos[index]];
+    } else if (action === 'c') {
+      photos.unshift(photos.splice(index, 1)[0]);
+    } else if (action === 'q') {
+      photos.splice(index, 1);
+    } else {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = () => { void addPhotos(input.files, index); };
+      input.click();
+      return;
+    }
+    renderPhotos();
+  });
+}
+
+function renderSizes() {
+  const host = $('#sz');
+  if (!host || !ed) return;
+  const hasSizes = !!ed.sizes;
+  host.innerHTML = `<label class="ck"><input type="checkbox" id="hs" ${hasSizes ? 'checked' : ''}>Este artículo tiene tallas</label>` + (hasSizes
+    ? `<table><thead><tr><th>Talla</th><th>Stock</th><th></th></tr></thead><tbody>${Object.entries(ed.sizes).map(([size, amount]) => `<tr><td>${esc(size)}</td><td><input type="number" min="0" value="${Number(amount) || 0}" data-sk="${esc(size)}" aria-label="Stock talla ${esc(size)}"></td><td><button class="btn s sm" data-rm="${esc(size)}">Quitar</button></td></tr>`).join('')}</tbody></table><div class="row" style="margin-top:8px"><input id="ns" placeholder="Nueva talla"><button class="btn s" id="as">Agregar talla</button></div>`
+    : `<label>Stock general<input type="number" min="0" id="gs" value="${Number(ed.stock) || 0}"></label>`);
+  $('#hs').onchange = (event) => { ed.sizes = event.target.checked ? { S: 0, M: 0, L: 0 } : null; dirty = true; renderSizes(); };
+  $$('[data-sk]').forEach((input) => input.oninput = () => { ed.sizes[input.dataset.sk] = Math.max(0, Number(input.value) || 0); dirty = true; });
+  $$('[data-rm]').forEach((button) => button.onclick = () => { delete ed.sizes[button.dataset.rm]; dirty = true; renderSizes(); });
+  $('#as') && ($('#as').onclick = () => {
+    const value = $('#ns').value.trim();
+    if (!value) return;
+    if (Object.hasOwn(ed.sizes, value)) return toast('Esa talla ya existe.');
+    ed.sizes[value] = 0;
+    dirty = true;
+    renderSizes();
+  });
+  $('#gs') && ($('#gs').oninput = (event) => { ed.stock = Math.max(0, Number(event.target.value) || 0); dirty = true; });
+}
+
+function openPv() {
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.innerHTML = `<div class="phone">${productView(ed, true)}</div><button class="btn">Cerrar vista previa</button>`;
+  document.body.append(modal);
+  bindGallery(modal);
+  $('.btn', modal).onclick = () => modal.remove();
+}
+
+async function saveP(status) {
+  if (!ed.name.trim() || ed.price === '' || ed.price == null || Number(ed.price) < 0) return toast('Agrega un nombre y un precio válido.');
+  const buttons = [$('#bd'), $('#bp')].filter(Boolean);
+  buttons.forEach((button) => { button.disabled = true; });
+  ed.status = status;
+  const index = S.p.findIndex((product) => product.id === ed.id);
+  if (index >= 0) S.p[index] = ed;
+  else S.p.push(ed);
+  const ok = await save();
+  buttons.forEach((button) => { button.disabled = false; });
+  if (!ok) return;
+  dirty = false;
+  toast(status === 'published' ? 'Producto publicado.' : 'Borrador guardado.');
+  go('#/admin/productos');
+}
+
+function loginOrAdminContent(section, route) {
+  if (authChecking) return '<section class="f"><h2>Verificando acceso…</h2><p class="mu">Comprobando tu sesión de Supabase antes de cargar el panel.</p></section>';
+  if (!isAdmin) return adminLogin();
+  let content;
+  let after;
+  if (section === 'pedidos') content = orders();
+  else if (section === 'pedido') content = orderDetail(route[2]);
+  else if (section === 'productos') content = products();
+  else if (section === 'promociones') content = promotions();
+  else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
+  else if (section === 'inventario') content = inventory();
+  else if (section === 'dashboard') content = dashboard();
+  else content = '<p>Página no encontrada.</p>';
+  return { html: adminShell(section === 'pedido' ? 'pedidos' : section === 'producto' ? 'productos' : section, content), after };
+}
+
+function render() {
+  const app = $('#app');
+  if (!ready) { app.innerHTML = '<p class="mu">Conectando con la tienda…</p>'; return; }
+  if (/\/admin\/?$/.test(location.pathname) && !location.hash) location.hash = '#/admin';
+  const [path, query] = (location.hash.slice(1) || '/').split('?');
+  const route = path.split('/').filter(Boolean);
+  const params = new URLSearchParams(query || '');
+
+  if (route[0] === 'admin') {
+    const section = route[1] || 'dashboard';
+    const result = loginOrAdminContent(section, route);
+    app.innerHTML = shell(typeof result === 'string' ? result : result.html);
+    if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
+    else { result.after?.(); if (section === 'promociones') bindPromotions(); }
+    $('#logout-button')?.addEventListener('click', () => { void signOut(); });
+    return;
+  }
+
+  const product = S.p.find((item) => item.id === route[1]);
+  let content;
+  let after;
+  if (!route.length) content = home();
+  else if (route[0] === 'catalogo') content = catalog(params);
+  else if (route[0] === 'producto') { content = productView(product); after = () => { if (product?.status === 'published') { bindGallery(app); bindProduct(app, product); } }; }
+  else if (route[0] === 'carrito') content = cart();
+  else if (route[0] === 'pedido') content = checkout();
+  else if (route[0] === 'confirmacion') content = done(route[1]);
+  else content = '<p>Página no encontrada.</p>';
+  app.innerHTML = shell(content);
+  if (route[0] === 'catalogo') renderProductList();
+  if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
+  after?.();
+}
+
+function handleRouteChange() {
+  if (location.hash === currentRoute) return;
+  if (dirty && !confirm('Hay cambios sin guardar. ¿Descartarlos?')) {
+    location.hash = currentRoute;
+    return;
+  }
+  dirty = false;
+  currentRoute = location.hash;
+  render();
+  scrollTo(0, 0);
+}
+
+window.addEventListener('hashchange', handleRouteChange);
+client.auth.onAuthStateChange((event, session) => {
+  setTimeout(async () => {
+    const nextIsAdmin=!!session?.user;
+    if(event==='PASSWORD_RECOVERY'){recoveryMode=true;isAdmin=false;}
+    if(event==='SIGNED_OUT'){isAdmin=false;S.o=[];S.promos=[];}
+    else if(nextIsAdmin && !isAdmin && ready && location.hash.startsWith('#/admin')){
+      isAdmin=true;
+      try{await loadProducts();await loadOrders();await loadPromotions();}catch(error){console.error('No se pudo cargar el panel tras autenticar:',error);isAdmin=false;}
+    }else{isAdmin=nextIsAdmin;}
+    if(ready)render();
+  },0);
+});
+
+async function init(){
+  const app = $('#app');
+  ready = true;
+  currentRoute = location.hash;
+  // Pintar la interfaz inmediatamente. La tienda no debe quedarse en blanco si Supabase tarda o falla.
+  render();
+  try {
+    await loadProducts();
+  } catch(error) {
+    console.error('No se pudieron cargar los productos:', error);
+  }
+  try {
+    await loadPromotions();
+  } catch(error) {
+    console.error('No se pudieron cargar las promociones:', error);
+  }
+  render();
+  if(location.hash.startsWith('#/admin')) void verifyAdminSession();
+}
+void init();

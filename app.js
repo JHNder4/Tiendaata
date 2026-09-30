@@ -73,7 +73,7 @@ function toast(message) {
 
 function safeImageSource(source) {
   const value = String(source || '');
-  if (/^https:\/\//i.test(value) || /^data:image\/svg\+xml,/i.test(value)) return value;
+  if (/^https:\/\//i.test(value) || /^data:image\/svg\+xml,/i.test(value) || /^\/(?!\/)/.test(value)) return value;
   return '';
 }
 
@@ -243,8 +243,18 @@ function productCard(product) {
 }
 
 function bannerMarkup() {
-  const list=(S.banners||[]).filter(b=>b.active).sort((a,b)=>Number(a.position)-Number(b.position)).slice(0,6);
-  if(!list.length)return '';
+  const configured=(S.banners||[]).filter(b=>b.active).sort((a,b)=>Number(a.position)-Number(b.position)).slice(0,6);
+  const list = configured.length ? configured : [{
+    id:'banner_fallback_20off',
+    kind:'text',
+    title:'20% OFF',
+    subtitle:'Descuento especial en productos seleccionados',
+    image_url:'/banner-20-off.svg',
+    link:'#/catalogo',
+    button_text:'Ver ofertas',
+    active:true,
+    position:0
+  }];
   return `<section class="banner-rail" aria-label="Destacados"><div class="banner-track">${list.map((b)=>{
     const product=b.product_id?S.p.find(p=>p.id===b.product_id):null;
     const promo=b.promotion_id?S.promos.find(p=>p.id===b.promotion_id):null;

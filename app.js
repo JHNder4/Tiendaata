@@ -15,6 +15,11 @@ const CART_KEY = K + '-carrito';
 const STATUS = { published: 'Publicado', draft: 'Borrador', hidden: 'Oculto' };
 const GENDERS = { general: 'General', hombre: 'Hombre', mujer: 'Mujer' };
 const CATEGORIES = ['Pantalones', 'Shorts', 'Playeras', 'Camisas', 'Sudaderas', 'Chamarras', 'Jeans', 'Vestidos', 'Faldas', 'Blusas', 'Conjuntos', 'Ropa interior', 'Accesorios', 'Calzado'];
+const DEFAULT_BANNERS = [
+  { id: 'banner_home_1', kind: 'Oferta', title: '20% OFF', subtitle: 'Descuento especial en productos seleccionados.', link: '#/catalogo', button_text: 'Ver ofertas', active: true, position: 0 },
+  { id: 'banner_home_2', kind: 'Novedades', title: 'Nuevas prendas', subtitle: 'Descubre lo más reciente de Tienda Ata.', link: '#/catalogo', button_text: 'Ver catálogo', active: true, position: 1 },
+  { id: 'banner_home_3', kind: 'Tienda Ata', title: 'Compra fácil', subtitle: 'Explora categorías, encuentra tu talla y arma tu pedido.', link: '#/catalogo', button_text: 'Explorar tienda', active: true, position: 2 }
+];
 const ORDER_STATUSES = ['Pendiente de confirmar', 'Confirmado', 'Preparando', 'Enviado', 'Entregado', 'Cancelado'];
 const DEMO_PRODUCTS = [];
 
@@ -473,7 +478,7 @@ function bindAdminLogin(){
       if(authError)throw authError;
       if(!data.session)throw new Error('No se pudo iniciar la sesión.');
       isAdmin=true;
-      await loadProducts();await loadOrders();await loadPromotions();
+      await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);
       render();toast('Sesión iniciada.');
     }catch(errorValue){
       isAdmin=false;
@@ -501,7 +506,7 @@ function bindAdminLogin(){
       const {data,error:authError}=await client.auth.signUp({email,password});
       if(authError)throw authError;
       if(data.session){
-        isAdmin=true;await loadProducts();await loadOrders();await loadPromotions();render();toast('Cuenta creada y sesión iniciada.');
+        isAdmin=true;await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);render();toast('Cuenta creada y sesión iniciada.');
       }else{
         error.textContent='Cuenta creada. Revisa tu correo para confirmar la cuenta y después inicia sesión.';
         loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
@@ -558,147 +563,97 @@ function dashboard() {
   </div><section class="f"><h2>Estado de pedidos</h2><p>Confirmados/en proceso: <b>${confirmed}</b> · Entregados: <b>${delivered}</b> · Cancelados: <b>${cancelled}</b></p><p class="mu">* Total de pedidos no cancelados; no significa necesariamente pagos cobrados.</p></section>
   <section class="f"><h2>Acciones rápidas</h2><div class="row"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><a class="btn s" href="#/admin/pedidos">Ver pedidos</a><a class="btn s" href="#/admin/promociones">Nueva promoción</a><button class="btn s" onclick="exportOrders()">Exportar pedidos CSV</button></div></section>`;
 }
+function bannerSettings() {
+  return DEFAULT_BANNERS.map((fallback) => {
+    const saved = (S.banners || []).find((item) => item.id === fallback.id);
+    return {
+      ...fallback,
+      title: saved?.title ?? fallback.title,
+      subtitle: saved?.subtitle ?? fallback.subtitle,
+      link: saved?.link ?? fallback.link,
+      button_text: saved?.button_text ?? fallback.button_text,
+      active: saved?.active ?? fallback.active
+    };
+  });
+}
+
+function safeBannerLink(value) {
+  const link = String(value || '').trim();
+  return /^(https?:\\/\\/|#\\/|\\/(?!\\/))/i.test(link) ? link : '#/catalogo';
+}
+
+function bannerPreviewMarkup(banner) {
+  const preset = Number(banner.position) + 1;
+  return `<div class="banner-preview-card banner-preset-${preset}">
+    <div class="banner-preview-orb"></div>
+    <div class="banner-preview-copy">
+      <span class="banner-kind">${esc(banner.kind)}</span>
+      <strong>${esc(banner.title || 'Sin título')}</strong>
+      <span>${esc(banner.subtitle || 'Agrega un mensaje para tus clientes.')}</span>
+      <b>${esc(banner.button_text || 'Ver más')}</b>
+    </div>
+  </div>`;
+}
+
 function banners() {
-  const list = S.banners || [];
-  const productOptions = publishedProducts().map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
-  const promoOptions = S.promos.map((p) => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
   return `<section class="f banner-editor">
-    <div class="admin-section-head"><div><span class="admin-eyebrow">PORTADA</span><h2>Banners</h2><p class="mu">Crea hasta 6 destacados para la portada. La imagen se sube igual que las fotos de producto.</p></div></div>
-    <div class="banner-form-grid">
-      <label>Tipo<select id="banner-kind"><option value="text">Texto</option><option value="product">Producto</option><option value="promotion">Promoción</option><option value="image">Imagen</option></select></label>
-      <label>Orden<input id="banner-position" type="number" min="0" max="5" value="0"></label>
-      <label>Título<input id="banner-title" placeholder="Ej. 20% OFF"></label>
-      <label>Botón<input id="banner-button" placeholder="Ver ofertas"></label>
-      <label class="wide">Texto<input id="banner-subtitle" placeholder="Ej. Descuento especial en productos seleccionados"></label>
+    <div class="admin-section-head"><div><span class="admin-eyebrow">PORTADA</span><h2>Banners predeterminados</h2><p class="mu">Hay 3 diseños fijos. Aquí solo cambias el texto, el destino del botón y si cada banner está encendido.</p></div></div>
+    <div class="banner-fixed-list">
+      ${bannerSettings().map((banner) => `<article class="banner-editor-item" data-banner-id="${esc(banner.id)}">
+        <div class="banner-editor-preview">${bannerPreviewMarkup(banner)}</div>
+        <div class="banner-editor-fields">
+          <div class="banner-editor-title"><span class="admin-eyebrow">PREDETERMINADO ${Number(banner.position) + 1}</span><strong>${esc(banner.title || 'Banner')}</strong></div>
+          <label>Título<input data-banner-field="title" value="${esc(banner.title)}" maxlength="80"></label>
+          <label>Texto<input data-banner-field="subtitle" value="${esc(banner.subtitle)}" maxlength="180"></label>
+          <div class="row">
+            <label>Texto del botón<input data-banner-field="button_text" value="${esc(banner.button_text)}" maxlength="40"></label>
+            <label>Enlace del botón<input data-banner-field="link" value="${esc(banner.link)}" maxlength="300" placeholder="#/catalogo o https://..."></label>
+          </div>
+          <label class="ck"><input data-banner-field="active" type="checkbox" ${banner.active ? 'checked' : ''}> Mostrar banner</label>
+          <div class="acts"><button class="btn" type="button" data-banner-save>Guardar cambios</button></div>
+        </div>
+      </article>`).join('')}
     </div>
-    <div class="banner-upload" id="banner-upload">
-      <input id="banner-file" type="file" accept="image/*" hidden>
-      <div class="banner-upload-copy"><strong>Imagen del banner</strong><span class="mu">JPG, PNG o WEBP · súbela desde tu equipo o arrástrala aquí</span></div>
-      <button class="btn s sm" type="button" id="banner-image-add">Agregar imagen</button>
-    </div>
-    <div id="banner-image-preview" class="banner-image-preview" hidden></div>
-    <input id="banner-image" type="hidden" value="">
-    <div class="row banner-linked-fields">
-      <label id="banner-product-wrap">Producto<select id="banner-product"><option value="">Selecciona</option>${productOptions}</select></label>
-      <label id="banner-promo-wrap">Promoción<select id="banner-promo"><option value="">Selecciona</option>${promoOptions}</select></label>
-      <label>Enlace opcional<input id="banner-link" placeholder="#/catalogo"></label>
-    </div>
-    <label class="ck"><input id="banner-active" type="checkbox" checked> Activo</label>
-    <div class="acts"><button class="btn" id="banner-save" type="button">Agregar banner</button></div>
   </section>
-  <section class="f">
-    <div class="admin-section-head"><div><h2>Elementos guardados</h2><span class="mu">${list.length}/6 banners</span></div></div>
-    ${list.length ? list.map((b) => `<div class="promo-row banner-saved-row"><div class="banner-saved-main">${b.image_url ? im(b.image_url, b.title || 'Banner', 'banner-thumb') : ''}<div><strong>${esc(b.title || b.kind)}</strong><span class="mu"> · ${esc(b.kind)}</span><br><span class="mu">${esc(b.subtitle || '')}</span></div></div><button class="btn s sm banner-delete" data-id="${esc(b.id)}">Eliminar</button></div>`).join('') : '<p class="mu">Todavía no hay banners.</p>'}
+  <section class="f banner-help">
+    <h3>Cómo funciona</h3>
+    <p class="mu">Los 3 banners siempre existen para que no tengas que estar creando ni borrando. Puedes prenderlos o apagarlos y editar su contenido cuando quieras.</p>
   </section>`;
 }
 
 function bindBanners() {
-  const kind = $('#banner-kind');
-  const productWrap = $('#banner-product-wrap');
-  const promoWrap = $('#banner-promo-wrap');
-  const upload = $('#banner-upload');
-  const fileInput = $('#banner-file');
-  const preview = $('#banner-image-preview');
-  const imageField = $('#banner-image');
-  const addButton = $('#banner-image-add');
+  $('.banner-editor-item').forEach((item) => {
+    const id = item.dataset.bannerId;
+    const saveButton = $('[data-banner-save]', item);
+    if (!id || !saveButton) return;
 
-  const update = () => {
-    const value = kind?.value || 'text';
-    if (productWrap) productWrap.style.display = value === 'product' ? '' : 'none';
-    if (promoWrap) promoWrap.style.display = value === 'promotion' ? '' : 'none';
-  };
+    saveButton.addEventListener('click', async () => {
+      const title = $('[data-banner-field="title"]', item)?.value.trim() || '';
+      const subtitle = $('[data-banner-field="subtitle"]', item)?.value.trim() || '';
+      const buttonText = $('[data-banner-field="button_text"]', item)?.value.trim() || '';
+      const link = safeBannerLink($('[data-banner-field="link"]', item)?.value);
+      const active = $('[data-banner-field="active"]', item)?.checked !== false;
+      if (!title) return toast('El banner necesita un título.');
 
-  const showPreview = (url) => {
-    if (!preview) return;
-    if (!url) { preview.hidden = true; preview.innerHTML = ''; return; }
-    preview.hidden = false;
-    preview.innerHTML = `<div class="banner-preview-media">${im(url, 'Vista previa del banner', 'banner-preview-image')}</div><button class="btn s sm" type="button" id="banner-image-remove">Quitar imagen</button>`;
-    $('#banner-image-remove')?.addEventListener('click', () => {
-      if (imageField) imageField.value = '';
-      showPreview('');
+      saveButton.disabled = true;
+      saveButton.textContent = 'Guardando…';
+      try {
+        await requireAuthenticatedUser();
+        const { error } = await client.from('banners')
+          .update({ title, subtitle, button_text: buttonText, link, active })
+          .eq('id', id);
+        if (error) throw error;
+        await loadBanners();
+        toast('Banner actualizado.');
+        render();
+      } catch (error) {
+        console.error('No se pudo actualizar el banner:', error);
+        toast(error.message || 'No se pudo guardar el banner.');
+        saveButton.disabled = false;
+        saveButton.textContent = 'Guardar cambios';
+      }
     });
-  };
-
-  const uploadSelected = async (file) => {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) return toast('El archivo debe ser una imagen.');
-    if (addButton) { addButton.disabled = true; addButton.textContent = 'Subiendo…'; }
-    try {
-      const url = await uploadPhoto(file);
-      if (imageField) imageField.value = url;
-      showPreview(url);
-      toast('Imagen del banner subida.');
-    } catch (error) {
-      console.error('No se pudo subir la imagen del banner:', error);
-      toast(error.message || 'No se pudo subir la imagen.');
-    } finally {
-      if (addButton) { addButton.disabled = false; addButton.textContent = 'Cambiar imagen'; }
-    }
-  };
-
-  kind?.addEventListener('change', update);
-  addButton?.addEventListener('click', () => fileInput?.click());
-  fileInput?.addEventListener('change', () => {
-    void uploadSelected(fileInput.files?.[0]);
-    fileInput.value = '';
   });
-  upload?.addEventListener('dragover', (event) => {
-    event.preventDefault();
-    upload.classList.add('o');
-  });
-  upload?.addEventListener('dragleave', () => upload.classList.remove('o'));
-  upload?.addEventListener('drop', (event) => {
-    event.preventDefault();
-    upload.classList.remove('o');
-    void uploadSelected(event.dataTransfer?.files?.[0]);
-  });
-  update();
-
-  $('#banner-save')?.addEventListener('click', async () => {
-    if (S.banners.length >= 6) return toast('Máximo 6 banners.');
-    const row = {
-      id: 'banner_' + Date.now(),
-      kind: kind?.value || 'text',
-      title: $('#banner-title')?.value.trim() || '',
-      subtitle: $('#banner-subtitle')?.value.trim() || '',
-      image_url: imageField?.value.trim() || '',
-      product_id: $('#banner-product')?.value || '',
-      promotion_id: $('#banner-promo')?.value || '',
-      link: $('#banner-link')?.value.trim() || '',
-      button_text: $('#banner-button')?.value.trim() || '',
-      active: $('#banner-active')?.checked !== false,
-      position: Math.min(5, Math.max(0, Number($('#banner-position')?.value || 0)))
-    };
-    if (!row.title && !row.image_url && !row.product_id && !row.promotion_id) return toast('Agrega contenido al banner.');
-    const button = $('#banner-save');
-    button.disabled = true;
-    button.textContent = 'Guardando…';
-    try {
-      await requireAuthenticatedUser();
-      const { error } = await client.from('banners').insert(row);
-      if (error) throw error;
-      await loadBanners();
-      toast('Banner agregado.');
-      render();
-    } catch (error) {
-      toast(error.message || 'No se pudo guardar.');
-      button.disabled = false;
-      button.textContent = 'Agregar banner';
-    }
-  });
-
-  $('.banner-delete').forEach((button) => button.addEventListener('click', async () => {
-    if (!confirm('¿Eliminar este banner?')) return;
-    try {
-      await requireAuthenticatedUser();
-      const { error } = await client.from('banners').delete().eq('id', button.dataset.id);
-      if (error) throw error;
-      await loadBanners();
-      render();
-    } catch (error) {
-      toast(error.message || 'No se pudo eliminar.');
-    }
-  }));
 }
 
 function adminShell(section, content) {
@@ -1178,16 +1133,10 @@ async function init(){
   // Pintar la interfaz inmediatamente. La tienda no debe quedarse en blanco si Supabase tarda o falla.
   render();
   try {
-    await loadProducts();
+    await Promise.all([loadProducts(), loadPromotions(), loadBanners()]);
   } catch(error) {
-    console.error('No se pudieron cargar los productos:', error);
+    console.error('No se pudieron cargar todos los datos públicos:', error);
   }
-  try {
-    await loadPromotions();
-  } catch(error) {
-    console.error('No se pudieron cargar las promociones:', error);
-  }
-  try { await loadBanners(); } catch(error) { console.error('No se pudieron cargar los banners:', error); }
   render();
   if(location.hash.startsWith('#/admin')) void verifyAdminSession();
 }

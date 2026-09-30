@@ -465,7 +465,9 @@ async function verifyAdminSession(){
 async function signOut(){
   const {error}=await client.auth.signOut();
   if(error){toast('No se pudo cerrar sesión.');return;}
-  isAdmin=false;S.o=[];S.promos=[];render();toast('Sesión cerrada.');
+  isAdmin=false;S.o=[];S.promos=[];
+  try{await loadProducts();await loadPromotions();}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
+  render();toast('Sesión cerrada.');
 }
 
 function adminShell(section, content) {

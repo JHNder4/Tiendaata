@@ -176,7 +176,7 @@ async function loadBanners(){
 
 async function refreshAdminState(){
   if(!isAdmin){S.o=[];return;}
-  try{await loadOrders();await loadPromotions();await loadBanners();}
+  try{await Promise.all([loadOrders(),loadPromotions(),loadBanners()]);}
   catch(error){console.error('No se pudieron cargar los datos de administración:',error);S.o=[];S.promos=[];}
 }
 
@@ -515,7 +515,7 @@ async function verifyAdminSession(){
   try{
     const user=await currentUser();
     isAdmin=!!user;
-    if(isAdmin){await loadProducts();await loadOrders();await loadPromotions();}
+    if(isAdmin){await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);}
   }catch(error){
     console.error('No se pudo verificar la sesión:',error);
     isAdmin=false;S.o=[];S.promos=[];
@@ -525,7 +525,7 @@ async function signOut(){
   const {error}=await client.auth.signOut();
   if(error){toast('No se pudo cerrar sesión.');return;}
   isAdmin=false;S.o=[];S.promos=[];
-  try{await loadProducts();await loadPromotions();}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
+  try{await Promise.all([loadProducts(),loadPromotions(),loadBanners()]);}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
   render();toast('Sesión cerrada.');
 }
 
@@ -552,21 +552,145 @@ function banners() {
   const list = S.banners || [];
   const productOptions = publishedProducts().map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
   const promoOptions = S.promos.map((p) => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
-  return `<section class="f banner-editor"><h2>Banners</h2><div class="row"><label>Tipo<select id="banner-kind"><option value="text">Texto</option><option value="product">Producto</option><option value="promotion">Promoción</option><option value="image">Imagen</option></select></label><label>Orden<input id="banner-position" type="number" min="0" max="5" value="0"></label></div><div class="row"><label>Título<input id="banner-title" placeholder="Título"></label><label>Botón<input id="banner-button" placeholder="Ver más"></label></div><label>Texto<input id="banner-subtitle" placeholder="Texto opcional"></label><label>Imagen URL<input id="banner-image" placeholder="https://..."></label><div class="row"><label id="banner-product-wrap">Producto<select id="banner-product"><option value="">Selecciona</option>${productOptions}</select></label><label id="banner-promo-wrap">Promoción<select id="banner-promo"><option value="">Selecciona</option>${promoOptions}</select></label></div><label>Enlace opcional<input id="banner-link" placeholder="#/catalogo"></label><label class="ck"><input id="banner-active" type="checkbox" checked> Activo</label><div class="acts"><button class="btn" id="banner-save">Agregar banner</button></div></section><section class="f"><h2>Elementos guardados (${list.length}/6)</h2>${list.length ? list.map((b) => `<div class="promo-row"><div><strong>${esc(b.title || b.kind)}</strong><span class="mu"> · ${esc(b.kind)}</span><br><span class="mu">${esc(b.subtitle || '')}</span></div><button class="btn s sm banner-delete" data-id="${esc(b.id)}">Eliminar</button></div>`).join('') : '<p class="mu">Todavía no hay banners.</p>'}</section>`;
+  return `<section class="f banner-editor">
+    <div class="admin-section-head"><div><span class="admin-eyebrow">PORTADA</span><h2>Banners</h2><p class="mu">Crea hasta 6 destacados para la portada. La imagen se sube igual que las fotos de producto.</p></div></div>
+    <div class="banner-form-grid">
+      <label>Tipo<select id="banner-kind"><option value="text">Texto</option><option value="product">Producto</option><option value="promotion">Promoción</option><option value="image">Imagen</option></select></label>
+      <label>Orden<input id="banner-position" type="number" min="0" max="5" value="0"></label>
+      <label>Título<input id="banner-title" placeholder="Ej. 20% OFF"></label>
+      <label>Botón<input id="banner-button" placeholder="Ver ofertas"></label>
+      <label class="wide">Texto<input id="banner-subtitle" placeholder="Ej. Descuento especial en productos seleccionados"></label>
+    </div>
+    <div class="banner-upload" id="banner-upload">
+      <input id="banner-file" type="file" accept="image/*" hidden>
+      <div class="banner-upload-copy"><strong>Imagen del banner</strong><span class="mu">JPG, PNG o WEBP · súbela desde tu equipo o arrástrala aquí</span></div>
+      <button class="btn s sm" type="button" id="banner-image-add">Agregar imagen</button>
+    </div>
+    <div id="banner-image-preview" class="banner-image-preview" hidden></div>
+    <input id="banner-image" type="hidden" value="">
+    <div class="row banner-linked-fields">
+      <label id="banner-product-wrap">Producto<select id="banner-product"><option value="">Selecciona</option>${productOptions}</select></label>
+      <label id="banner-promo-wrap">Promoción<select id="banner-promo"><option value="">Selecciona</option>${promoOptions}</select></label>
+      <label>Enlace opcional<input id="banner-link" placeholder="#/catalogo"></label>
+    </div>
+    <label class="ck"><input id="banner-active" type="checkbox" checked> Activo</label>
+    <div class="acts"><button class="btn" id="banner-save" type="button">Agregar banner</button></div>
+  </section>
+  <section class="f">
+    <div class="admin-section-head"><div><h2>Elementos guardados</h2><span class="mu">${list.length}/6 banners</span></div></div>
+    ${list.length ? list.map((b) => `<div class="promo-row banner-saved-row"><div class="banner-saved-main">${b.image_url ? im(b.image_url, b.title || 'Banner', 'banner-thumb') : ''}<div><strong>${esc(b.title || b.kind)}</strong><span class="mu"> · ${esc(b.kind)}</span><br><span class="mu">${esc(b.subtitle || '')}</span></div></div><button class="btn s sm banner-delete" data-id="${esc(b.id)}">Eliminar</button></div>`).join('') : '<p class="mu">Todavía no hay banners.</p>'}
+  </section>`;
 }
+
 function bindBanners() {
-  const kind=$('#banner-kind'), productWrap=$('#banner-product-wrap'), promoWrap=$('#banner-promo-wrap');
-  const update=()=>{const k=kind?.value; if(productWrap) productWrap.style.display=k==='product'?'':'none'; if(promoWrap) promoWrap.style.display=k==='promotion'?'':'none';};
-  kind?.addEventListener('change',update); update();
-  $('#banner-save')?.addEventListener('click',async()=>{
-    if(S.banners.length>=6)return toast('Máximo 6 banners.');
-    const row={id:'banner_'+Date.now(),kind:kind?.value||'text',title:$('#banner-title')?.value.trim()||'',subtitle:$('#banner-subtitle')?.value.trim()||'',image_url:$('#banner-image')?.value.trim()||'',product_id:$('#banner-product')?.value||'',promotion_id:$('#banner-promo')?.value||'',link:$('#banner-link')?.value.trim()||'',button_text:$('#banner-button')?.value.trim()||'',active:$('#banner-active')?.checked!==false,position:Math.min(5,Math.max(0,Number($('#banner-position')?.value||0)))};
-    if(!row.title && !row.image_url && !row.product_id && !row.promotion_id)return toast('Agrega contenido al banner.');
-    const button=$('#banner-save'); button.disabled=true;
-    try{await requireAuthenticatedUser();const {error}=await client.from('banners').insert(row);if(error)throw error;await loadBanners();toast('Banner agregado.');render();}catch(e){toast(e.message||'No se pudo guardar.');button.disabled=false;}
+  const kind = $('#banner-kind');
+  const productWrap = $('#banner-product-wrap');
+  const promoWrap = $('#banner-promo-wrap');
+  const upload = $('#banner-upload');
+  const fileInput = $('#banner-file');
+  const preview = $('#banner-image-preview');
+  const imageField = $('#banner-image');
+  const addButton = $('#banner-image-add');
+
+  const update = () => {
+    const value = kind?.value || 'text';
+    if (productWrap) productWrap.style.display = value === 'product' ? '' : 'none';
+    if (promoWrap) promoWrap.style.display = value === 'promotion' ? '' : 'none';
+  };
+
+  const showPreview = (url) => {
+    if (!preview) return;
+    if (!url) { preview.hidden = true; preview.innerHTML = ''; return; }
+    preview.hidden = false;
+    preview.innerHTML = `<div class="banner-preview-media">${im(url, 'Vista previa del banner', 'banner-preview-image')}</div><button class="btn s sm" type="button" id="banner-image-remove">Quitar imagen</button>`;
+    $('#banner-image-remove')?.addEventListener('click', () => {
+      if (imageField) imageField.value = '';
+      showPreview('');
+    });
+  };
+
+  const uploadSelected = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) return toast('El archivo debe ser una imagen.');
+    if (addButton) { addButton.disabled = true; addButton.textContent = 'Subiendo…'; }
+    try {
+      const url = await uploadPhoto(file);
+      if (imageField) imageField.value = url;
+      showPreview(url);
+      toast('Imagen del banner subida.');
+    } catch (error) {
+      console.error('No se pudo subir la imagen del banner:', error);
+      toast(error.message || 'No se pudo subir la imagen.');
+    } finally {
+      if (addButton) { addButton.disabled = false; addButton.textContent = 'Cambiar imagen'; }
+    }
+  };
+
+  kind?.addEventListener('change', update);
+  addButton?.addEventListener('click', () => fileInput?.click());
+  fileInput?.addEventListener('change', () => {
+    void uploadSelected(fileInput.files?.[0]);
+    fileInput.value = '';
   });
-  $('.banner-delete').forEach((button)=>button.addEventListener('click',async()=>{if(!confirm('¿Eliminar este banner?'))return;try{await requireAuthenticatedUser();const {error}=await client.from('banners').delete().eq('id',button.dataset.id);if(error)throw error;await loadBanners();render();}catch(e){toast(e.message||'No se pudo eliminar.');}}));
+  upload?.addEventListener('dragover', (event) => {
+    event.preventDefault();
+    upload.classList.add('o');
+  });
+  upload?.addEventListener('dragleave', () => upload.classList.remove('o'));
+  upload?.addEventListener('drop', (event) => {
+    event.preventDefault();
+    upload.classList.remove('o');
+    void uploadSelected(event.dataTransfer?.files?.[0]);
+  });
+  update();
+
+  $('#banner-save')?.addEventListener('click', async () => {
+    if (S.banners.length >= 6) return toast('Máximo 6 banners.');
+    const row = {
+      id: 'banner_' + Date.now(),
+      kind: kind?.value || 'text',
+      title: $('#banner-title')?.value.trim() || '',
+      subtitle: $('#banner-subtitle')?.value.trim() || '',
+      image_url: imageField?.value.trim() || '',
+      product_id: $('#banner-product')?.value || '',
+      promotion_id: $('#banner-promo')?.value || '',
+      link: $('#banner-link')?.value.trim() || '',
+      button_text: $('#banner-button')?.value.trim() || '',
+      active: $('#banner-active')?.checked !== false,
+      position: Math.min(5, Math.max(0, Number($('#banner-position')?.value || 0)))
+    };
+    if (!row.title && !row.image_url && !row.product_id && !row.promotion_id) return toast('Agrega contenido al banner.');
+    const button = $('#banner-save');
+    button.disabled = true;
+    button.textContent = 'Guardando…';
+    try {
+      await requireAuthenticatedUser();
+      const { error } = await client.from('banners').insert(row);
+      if (error) throw error;
+      await loadBanners();
+      toast('Banner agregado.');
+      render();
+    } catch (error) {
+      toast(error.message || 'No se pudo guardar.');
+      button.disabled = false;
+      button.textContent = 'Agregar banner';
+    }
+  });
+
+  $('.banner-delete').forEach((button) => button.addEventListener('click', async () => {
+    if (!confirm('¿Eliminar este banner?')) return;
+    try {
+      await requireAuthenticatedUser();
+      const { error } = await client.from('banners').delete().eq('id', button.dataset.id);
+      if (error) throw error;
+      await loadBanners();
+      render();
+    } catch (error) {
+      toast(error.message || 'No se pudo eliminar.');
+    }
+  }));
 }
+
 function adminShell(section, content) {
   const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['banners', 'Banners', S.banners.filter((banner) => banner.active).length], ['inventario', 'Inventario', 0]];
   return `<div class="admin-shell"><div class="ahd"><div><span class="admin-eyebrow">TIENDA ATA</span><h1>Panel de administración</h1></div><div class="row admin-actions"><a class="nav-btn" href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}</div>`;

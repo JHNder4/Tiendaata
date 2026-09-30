@@ -1,8 +1,8 @@
 const SB_URL = 'https://svvylvtmmynxkmdowymx.supabase.co';
 const SB_PUBLISHABLE_KEY = 'sb_publishable_RYbyrmTxY4Qv2rKTuxeT6Q_70Juauak';
-const client = window.supabase.createClient(SB_URL, SB_PUBLISHABLE_KEY, {
+const client = window.supabase ? window.supabase.createClient(SB_URL, SB_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-});
+}) : null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const $$ = (selector, root = document) => [...root.querySelectorAll(selector)];
@@ -134,6 +134,7 @@ const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Nu
 const go = (hash) => { location.hash = hash; };
 
 async function currentUser() {
+  if (!client) throw new Error('No se pudo cargar el servicio de la tienda.');
   const { data, error } = await client.auth.getUser();
   if (error) throw error;
   return data.user || null;
@@ -1018,7 +1019,7 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-client.auth.onAuthStateChange((event, session) => {
+client?.auth.onAuthStateChange((event, session) => {
   setTimeout(async () => {
     const nextIsAdmin=!!session?.user;
     if(event==='PASSWORD_RECOVERY'){recoveryMode=true;isAdmin=false;}
@@ -1035,6 +1036,11 @@ async function init(){
   const app = $('#app');
   ready = true;
   currentRoute = location.hash;
+  if (!client) {
+    console.error('Supabase JS no se pudo cargar. La interfaz seguirá visible, pero los datos no estarán disponibles.');
+    render();
+    return;
+  }
   // Pintar la interfaz inmediatamente. La tienda no debe quedarse en blanco si Supabase tarda o falla.
   render();
   try {

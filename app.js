@@ -573,7 +573,12 @@ function bannerSettings() {
 
 function safeBannerLink(value) {
   const link = String(value || '').trim();
-  return /^(https?:\\/\\/|#\\/|\\/(?!\\/))/i.test(link) ? link : '#/catalogo';
+  if (link.startsWith('#/') || (link.startsWith('/') && !link.startsWith('//'))) return link;
+  try {
+    const url = new URL(link, location.origin);
+    if (url.protocol === 'http:' || url.protocol === 'https:') return url.href;
+  } catch (_) {}
+  return '#/catalogo';
 }
 
 function bannerPreviewMarkup(banner) {

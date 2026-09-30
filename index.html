@@ -931,6 +931,26 @@ html[data-theme="dark"] .banner-preview-media{
 }
 
 
+/* Carrusel de banners: movimiento automático sutil y ligero */
+.glass-banner{
+  will-change:auto;
+}
+.glass-banner .banner-light-orb{
+  animation:ataBannerFloat 7s ease-in-out infinite alternate;
+}
+.glass-banner.banner-preset-2 .banner-light-orb{
+  animation-delay:-2.2s;
+}
+.glass-banner.banner-preset-3 .banner-light-orb{
+  animation-delay:-4.4s;
+}
+@keyframes ataBannerFloat{
+  0%{transform:translate3d(-8px,4px,0) scale(.98);opacity:.72}
+  100%{transform:translate3d(12px,-8px,0) scale(1.05);opacity:.95}
+}
+@media(prefers-reduced-motion:reduce){
+  .glass-banner .banner-light-orb{animation:none!important}
+}
 /* Tienda Ata — rendimiento: conserva el aspecto glass sin filtros SVG pesados */
 body{animation:none!important;background-size:100% 100%!important}
 body::before{display:none!important}

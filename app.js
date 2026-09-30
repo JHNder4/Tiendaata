@@ -41,7 +41,7 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
   det: {}
 }));
 
-let S = { p: [], o: [], c: [], promos: [] };
+let S = { p: [], o: [], c: [], promos: [], banners: [] };
 let isAdmin = false;
 let authChecking = false;
 let recoveryMode = false;
@@ -167,9 +167,15 @@ async function loadPromotions(){
   S.promos=data||[];
 }
 
+async function loadBanners(){
+  const {data,error}=await client.from('banners').select('*').order('position',{ascending:true}).order('created_at',{ascending:false});
+  if(error)throw error;
+  S.banners=data||[];
+}
+
 async function refreshAdminState(){
   if(!isAdmin){S.o=[];return;}
-  try{await loadOrders();await loadPromotions();}
+  try{await loadOrders();await loadPromotions();await loadBanners();}
   catch(error){console.error('No se pudieron cargar los datos de administración:',error);S.o=[];S.promos=[];}
 }
 
@@ -226,13 +232,25 @@ function productCard(product) {
   return `<a class="card" href="#/producto/${encodeURIComponent(product.id)}">${im(photos[0], product.name)}<b>${esc(product.name)}</b><span>${productPrice(product)}</span>${totalStock(product) ? '' : '<em>Agotado</em>'}</a>`;
 }
 
+function bannerMarkup() {
+  const list=(S.banners||[]).filter(b=>b.active).sort((a,b)=>Number(a.position)-Number(b.position)).slice(0,6);
+  if(!list.length)return '';
+  return `<section class="banner-rail" aria-label="Destacados"><div class="banner-track">${list.map((b)=>{
+    const product=b.product_id?S.p.find(p=>p.id===b.product_id):null;
+    const promo=b.promotion_id?S.promos.find(p=>p.id===b.promotion_id):null;
+    const title=b.title||product?.name||promo?.title||'';
+    const subtitle=b.subtitle||product?.desc||promo?.subtitle||'';
+    const image=b.image_url||(product?.photos?.[0]||'');
+    const href=b.link||(product?'#/producto/'+encodeURIComponent(product.id):'#/catalogo');
+    return `<article class="glass-banner">${image?im(image,title,'banner-image'):''}<div class="banner-copy"><span class="banner-kind">${esc(b.kind)}</span><h2>${esc(title)}</h2><p>${esc(subtitle)}</p>${b.button_text?`<a class="nav-btn" href="${esc(href)}">${esc(b.button_text)}</a>`:''}</div></article>`;
+  }).join('')}</div></section>`;
+}
 function home() {
   const list = publishedProducts();
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
-  return `<section class="store-section home-minimal">
-    <div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div>
-  </section>
+  return `${bannerMarkup()}
   <section class="store-section minimal-categories"><div class="section-head"><h2>Categorías</h2><a class="nav-btn" href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a class="control-btn" href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
+  <section class="store-section home-minimal"><div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div></section>
   ${offers.length ? `<section class="store-section"><div class="section-head"><h2>Ofertas</h2><a class="nav-btn" href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
 }
 
@@ -520,8 +538,27 @@ function dashboard() {
   </div><section class="f"><h2>Estado de pedidos</h2><p>Confirmados/en proceso: <b>${confirmed}</b> · Entregados: <b>${delivered}</b> · Cancelados: <b>${cancelled}</b></p><p class="mu">* Total de pedidos no cancelados; no significa necesariamente pagos cobrados.</p></section>
   <section class="f"><h2>Acciones rápidas</h2><div class="row"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><a class="btn s" href="#/admin/pedidos">Ver pedidos</a><a class="btn s" href="#/admin/promociones">Nueva promoción</a><button class="btn s" onclick="exportOrders()">Exportar pedidos CSV</button></div></section>`;
 }
+function banners() {
+  const list = S.banners || [];
+  const productOptions = publishedProducts().map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('');
+  const promoOptions = S.promos.map((p) => `<option value="${esc(p.id)}">${esc(p.title)}</option>`).join('');
+  return `<section class="f banner-editor"><h2>Banners</h2><div class="row"><label>Tipo<select id="banner-kind"><option value="text">Texto</option><option value="product">Producto</option><option value="promotion">Promoción</option><option value="image">Imagen</option></select></label><label>Orden<input id="banner-position" type="number" min="0" max="5" value="0"></label></div><div class="row"><label>Título<input id="banner-title" placeholder="Título"></label><label>Botón<input id="banner-button" placeholder="Ver más"></label></div><label>Texto<input id="banner-subtitle" placeholder="Texto opcional"></label><label>Imagen URL<input id="banner-image" placeholder="https://..."></label><div class="row"><label id="banner-product-wrap">Producto<select id="banner-product"><option value="">Selecciona</option>${productOptions}</select></label><label id="banner-promo-wrap">Promoción<select id="banner-promo"><option value="">Selecciona</option>${promoOptions}</select></label></div><label>Enlace opcional<input id="banner-link" placeholder="#/catalogo"></label><label class="ck"><input id="banner-active" type="checkbox" checked> Activo</label><div class="acts"><button class="btn" id="banner-save">Agregar banner</button></div></section><section class="f"><h2>Elementos guardados (${list.length}/6)</h2>${list.length ? list.map((b) => `<div class="promo-row"><div><strong>${esc(b.title || b.kind)}</strong><span class="mu"> · ${esc(b.kind)}</span><br><span class="mu">${esc(b.subtitle || '')}</span></div><button class="btn s sm banner-delete" data-id="${esc(b.id)}">Eliminar</button></div>`).join('') : '<p class="mu">Todavía no hay banners.</p>'}</section>`;
+}
+function bindBanners() {
+  const kind=$('#banner-kind'), productWrap=$('#banner-product-wrap'), promoWrap=$('#banner-promo-wrap');
+  const update=()=>{const k=kind?.value; if(productWrap) productWrap.style.display=k==='product'?'':'none'; if(promoWrap) promoWrap.style.display=k==='promotion'?'':'none';};
+  kind?.addEventListener('change',update); update();
+  $('#banner-save')?.addEventListener('click',async()=>{
+    if(S.banners.length>=6)return toast('Máximo 6 banners.');
+    const row={id:'banner_'+Date.now(),kind:kind?.value||'text',title:$('#banner-title')?.value.trim()||'',subtitle:$('#banner-subtitle')?.value.trim()||'',image_url:$('#banner-image')?.value.trim()||'',product_id:$('#banner-product')?.value||'',promotion_id:$('#banner-promo')?.value||'',link:$('#banner-link')?.value.trim()||'',button_text:$('#banner-button')?.value.trim()||'',active:$('#banner-active')?.checked!==false,position:Math.min(5,Math.max(0,Number($('#banner-position')?.value||0)))};
+    if(!row.title && !row.image_url && !row.product_id && !row.promotion_id)return toast('Agrega contenido al banner.');
+    const button=$('#banner-save'); button.disabled=true;
+    try{await requireAuthenticatedUser();const {error}=await client.from('banners').insert(row);if(error)throw error;await loadBanners();toast('Banner agregado.');render();}catch(e){toast(e.message||'No se pudo guardar.');button.disabled=false;}
+  });
+  $('.banner-delete').forEach((button)=>button.addEventListener('click',async()=>{if(!confirm('¿Eliminar este banner?'))return;try{await requireAuthenticatedUser();const {error}=await client.from('banners').delete().eq('id',button.dataset.id);if(error)throw error;await loadBanners();render();}catch(e){toast(e.message||'No se pudo eliminar.');}}));
+}
 function adminShell(section, content) {
-  const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
+  const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['banners', 'Banners', S.banners.filter((banner) => banner.active).length], ['inventario', 'Inventario', 0]];
   return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
 }
 
@@ -867,6 +904,7 @@ function loginOrAdminContent(section, route) {
   else if (section === 'pedido') content = orderDetail(route[2]);
   else if (section === 'productos') content = products();
   else if (section === 'promociones') content = promotions();
+  else if (section === 'banners') content = banners();
   else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
   else if (section === 'inventario') content = inventory();
   else if (section === 'dashboard') content = dashboard();
@@ -888,7 +926,7 @@ function render() {
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
     applyTheme(); bindThemeToggle();
     if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
-    else { result.after?.(); if (section === 'promociones') bindPromotions(); }
+    else { result.after?.(); if (section === 'promociones') bindPromotions(); if (section === 'banners') bindBanners(); }
     $('#logout-button')?.addEventListener('click', () => { void signOut(); });
     return;
   }

@@ -1,0 +1,22 @@
+-- Replace legacy admin-code/Clerk authorization with Supabase Auth.
+drop policy if exists "Admins can delete products" on public.products;
+drop policy if exists "Admins can insert products" on public.products;
+drop policy if exists "Admins can update products" on public.products;
+drop policy if exists "Public can view published products" on public.products;
+drop policy if exists "Admins can read orders" on public.orders;
+drop policy if exists "Admins can update orders" on public.orders;
+drop policy if exists "Public orders are hidden" on public.orders;
+drop policy if exists "Public can view active promotions" on public.promotions;
+create policy "Public can view published products" on public.products for select to anon, authenticated using ((data ->> 'status') = 'published');
+create policy "Authenticated can view all products" on public.products for select to authenticated using (true);
+create policy "Authenticated can insert products" on public.products for insert to authenticated with check (true);
+create policy "Authenticated can update products" on public.products for update to authenticated using (true) with check (true);
+create policy "Authenticated can delete products" on public.products for delete to authenticated using (true);
+create policy "Authenticated can read orders" on public.orders for select to authenticated using (true);
+create policy "Authenticated can update orders" on public.orders for update to authenticated using (true) with check (true);
+create policy "Public orders are hidden" on public.orders for select to anon using (false);
+create policy "Public can view active promotions" on public.promotions for select to anon, authenticated using (active = true and (starts_at is null or starts_at <= now()) and (ends_at is null or ends_at >= now()));
+create policy "Authenticated can view all promotions" on public.promotions for select to authenticated using (true);
+create policy "Authenticated can insert promotions" on public.promotions for insert to authenticated with check (true);
+create policy "Authenticated can update promotions" on public.promotions for update to authenticated using (true) with check (true);
+create policy "Authenticated can delete promotions" on public.promotions for delete to authenticated using (true);

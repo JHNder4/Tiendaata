@@ -11,11 +11,11 @@ const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 })[char]);
 const money = (amount) => '$' + Number(amount || 0).toLocaleString('es-MX') + ' MXN';
-const K = 'tienda-proto-v1';
+const K = 'tienda-ata-v1';
 const CART_KEY = K + '-carrito';
 const STATUS = { published: 'Publicado', draft: 'Borrador', hidden: 'Oculto' };
 const ORDER_STATUSES = ['Pendiente de confirmar', 'Confirmado', 'Preparando', 'Enviado', 'Entregado', 'Cancelado'];
-const DEMO_PRODUCTS = Array.isArray(DEMO) ? DEMO : [];
+const DEMO_PRODUCTS = [];
 
 const placeholderImage = (color, kind, number) => 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 400"><rect width="300" height="400" fill="#eeedea"/><path d="${{
@@ -255,7 +255,7 @@ function bindProduct(root, product) {
 function cart() {
   const rows = cartRows();
   if (!rows.length) return '<h1>Carrito</h1><p class="mu">Tu carrito está vacío.</p><a class="btn" href="#/catalogo">Ver catálogo</a>';
-  return `<h1>Carrito</h1>${rows.map(({ item, index, product }) => `<div class="ci">${im((product.photos || [])[0], product.name)}<div><b>${esc(product.name)}</b><div class="mu">${item.size ? `Talla ${esc(item.size)} · ` : ''}${money(product.price)}</div></div><div class="row"><button class="btn s sm" onclick="cq(${index},-1)" aria-label="Menos">−</button>${item.qty}<button class="btn s sm" onclick="cq(${index},1)" aria-label="Más">+</button></div><button class="btn s sm" onclick="cr(${index})">Quitar</button></div>`).join('')}<h2>Total: ${money(cartTotal())}</h2><a class="btn" href="#/pedido">Hacer pedido de prueba</a>`;
+  return `<h1>Carrito</h1>${rows.map(({ item, index, product }) => `<div class="ci">${im((product.photos || [])[0], product.name)}<div><b>${esc(product.name)}</b><div class="mu">${item.size ? `Talla ${esc(item.size)} · ` : ''}${money(product.price)}</div></div><div class="row"><button class="btn s sm" onclick="cq(${index},-1)" aria-label="Menos">−</button>${item.qty}<button class="btn s sm" onclick="cq(${index},1)" aria-label="Más">+</button></div><button class="btn s sm" onclick="cr(${index})">Quitar</button></div>`).join('')}<h2>Total: ${money(cartTotal())}</h2><a class="btn" href="#/pedido">Continuar con el pedido</a>`;
 }
 
 function cq(index, delta) {
@@ -274,10 +274,10 @@ function cr(index) {
   void save().then(render);
 }
 
-const ORDER_NOTE = '<div class="note">Pedido de prueba: no se realiza ningún cobro.</div>';
+const ORDER_NOTE = '';
 function checkout() {
   if (!cartRows().length) return '<p>Tu carrito está vacío. <a href="#/catalogo">Ver catálogo</a></p>';
-  return `<h1>Pedido de prueba</h1>${ORDER_NOTE}<form id="checkout-form"><label>Nombre<input name="name" autocomplete="name" required maxlength="120"></label><label>Teléfono<input name="phone" type="tel" autocomplete="tel" required maxlength="40"></label><label>Dirección de entrega<textarea name="addr" autocomplete="street-address" required maxlength="500"></textarea></label><label>Notas (opcional)<textarea name="notes" maxlength="1000"></textarea></label><h2>Total: ${money(cartTotal())}</h2><button class="btn" id="cb">Confirmar pedido de prueba</button></form>`;
+  return `<h1>Finalizar pedido</h1>${ORDER_NOTE}<form id="checkout-form"><label>Nombre<input name="name" autocomplete="name" required maxlength="120"></label><label>Teléfono<input name="phone" type="tel" autocomplete="tel" required maxlength="40"></label><label>Dirección de entrega<textarea name="addr" autocomplete="street-address" required maxlength="500"></textarea></label><label>Notas (opcional)<textarea name="notes" maxlength="1000"></textarea></label><h2>Total: ${money(cartTotal())}</h2><button class="btn" id="cb">Confirmar pedido</button></form>`;
 }
 
 async function placeOrder(event) {
@@ -317,13 +317,13 @@ async function placeOrder(event) {
     go(`#/confirmacion/${encodeURIComponent(orderNumber)}`);
   } catch (error) {
     console.error('No se pudo registrar el pedido:', error);
-    if (button) { button.disabled = false; button.textContent = 'Confirmar pedido de prueba'; }
+    if (button) { button.disabled = false; button.textContent = 'Confirmar pedido'; }
     toast(error.message?.includes('Sin existencias') ? 'El inventario cambió. Revisa tu carrito.' : 'No se pudo registrar el pedido. Inténtalo de nuevo.');
   }
 }
 
 function done(orderNumber) {
-  return `<h1>Pedido de prueba #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido de prueba quedó registrado.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
+  return `<h1>Pedido #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido quedó registrado correctamente.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
 }
 
 function adminLogin(){return `<section class="f"><h2>Acceso de administración</h2><p class="mu">Introduce la contraseña única de administración.</p><form id="admin-login"><label>Contraseña<input type="password" name="password" autocomplete="current-password" required></label><button class="btn" id="login-button">Entrar</button></form><p id="login-error" class="mu" role="alert"></p></section>`;}
@@ -347,14 +347,14 @@ function adminShell(section, content) {
 function orders() {
   return S.o.length
     ? `<table><thead><tr><th>N.º</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${S.o.map((order) => `<tr><td>#${esc(order.n)}</td><td>${esc(order.name)}</td><td>${money(orderTotal(order))}</td><td>${esc(order.status)}</td><td><a class="btn s sm" href="#/admin/pedido/${encodeURIComponent(order.n)}">Abrir</a></td></tr>`).join('')}</tbody></table>`
-    : '<p class="mu">Aún no hay pedidos. Haz un pedido de prueba en la tienda.</p>';
+    : '<p class="mu">Aún no hay pedidos registrados.</p>';
 }
 
 function orderDetail(number) {
   const order = S.o.find((item) => String(item.n) === String(number));
   if (!order) return '<p>Pedido no encontrado.</p>';
   const date = order.date ? new Date(order.date).toLocaleString('es-MX') : '';
-  return `<a href="#/admin/pedidos">← Pedidos</a><h2>Pedido #${esc(order.n)}</h2><p class="mu">${esc(date)} · Pedido de prueba</p><label>Estado<select id="order-status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? 'selected' : ''}>${esc(status)}</option>`).join('')}</select></label>
+  return `<a href="#/admin/pedidos">← Pedidos</a><h2>Pedido #${esc(order.n)}</h2><p class="mu">${esc(date)}</p><label>Estado<select id="order-status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? 'selected' : ''}>${esc(status)}</option>`).join('')}</select></label>
     <table><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th></tr></thead><tbody>${(order.items || []).map((item) => `<tr><td>${esc(item.name)}</td><td>${esc(item.size || '—')}</td><td>${esc(item.qty)}</td><td>${money(item.price)}</td></tr>`).join('')}</tbody></table><h3 style="margin-top:12px">Total: ${money(orderTotal(order))}</h3>
     <p><b>Nombre:</b> ${esc(order.name)}<br><b>Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Notas:</b> ${esc(order.notes || '—')}</p>`;
 }
@@ -364,11 +364,11 @@ function productList(query = '') {
   const text = query.toLowerCase();
   const list = S.p.filter((product) => !text || `${product.name || ''}${product.brand || ''}${product.cat || ''}`.toLowerCase().includes(text));
   if (!list.length) return '<p class="mu">No hay productos.</p>';
-  return `<table><thead><tr><th></th><th>Producto</th><th>Precio</th><th>Tallas y stock</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((product) => `<tr><td>${im((product.photos || [])[0], product.name, 'thm')}</td><td>${esc(product.name)}${product.isDemo ? ' <span class="mu">(ejemplo)</span>' : ''}</td><td>${money(product.price)}</td><td>${product.sizes ? Object.entries(product.sizes).map(([size, amount]) => `${esc(size)}: ${esc(amount)}`).join(', ') : `Stock: ${esc(product.stock)}`}</td><td><span class="tag">${esc(STATUS[product.status] || 'Borrador')}</span>${totalStock(product) ? '' : '<span class="tag r">Agotado</span>'}</td><td><div class="row"><a class="btn s sm" href="#/admin/producto/${encodeURIComponent(product.id)}">Editar</a><button class="btn s sm" onclick="dup('${esc(product.id)}')">Duplicar</button><button class="btn s sm" onclick="tgl('${esc(product.id)}')">${product.status === 'published' ? 'Ocultar' : 'Publicar'}</button><button class="btn d sm" onclick="del('${esc(product.id)}')">Eliminar</button></div></td></tr>`).join('')}</tbody></table>`;
+  return `<table><thead><tr><th></th><th>Producto</th><th>Precio</th><th>Tallas y stock</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((product) => `<tr><td>${im((product.photos || [])[0], product.name, 'thm')}</td><td>${esc(product.name)}</td><td>${money(product.price)}</td><td>${product.sizes ? Object.entries(product.sizes).map(([size, amount]) => `${esc(size)}: ${esc(amount)}`).join(', ') : `Stock: ${esc(product.stock)}`}</td><td><span class="tag">${esc(STATUS[product.status] || 'Borrador')}</span>${totalStock(product) ? '' : '<span class="tag r">Agotado</span>'}</td><td><div class="row"><a class="btn s sm" href="#/admin/producto/${encodeURIComponent(product.id)}">Editar</a><button class="btn s sm" onclick="dup('${esc(product.id)}')">Duplicar</button><button class="btn s sm" onclick="tgl('${esc(product.id)}')">${product.status === 'published' ? 'Ocultar' : 'Publicar'}</button><button class="btn d sm" onclick="del('${esc(product.id)}')">Eliminar</button></div></td></tr>`).join('')}</tbody></table>`;
 }
 
 function products() {
-  return `<div class="row"><input id="pq" placeholder="Buscar producto" oninput="$('#pl').innerHTML=productList(this.value)" style="flex:1"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><button class="btn d" onclick="delDemo()">Eliminar productos de ejemplo</button></div><div id="pl" style="margin-top:10px">${productList()}</div>`;
+  return `<div class="row"><input id="pq" placeholder="Buscar producto" oninput="$('#pl').innerHTML=productList(this.value)" style="flex:1"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a></div><div id="pl" style="margin-top:10px">${productList()}</div>`;
 }
 
 function refreshProductList() {
@@ -410,12 +410,6 @@ async function delDemo() {
   if (await save()) { refreshProductList(); toast('Productos de ejemplo eliminados.'); }
 }
 
-async function resetDemo() {
-  if (!confirm('Se restaurarán los productos de ejemplo originales. Tus productos y pedidos se conservan. ¿Continuar?')) return;
-  S.p = [...seedProducts(), ...S.p.filter((product) => !product.isDemo)];
-  if (await save()) { refreshProductList(); toast('Datos de ejemplo restablecidos.'); }
-}
-
 async function setStk(id, size, value) {
   const product = S.p.find((item) => item.id === id);
   if (!product) return;
@@ -430,7 +424,7 @@ function inventory() {
 }
 
 function settings() {
-  return `<div class="acts"><button class="btn s" onclick="resetDemo()">Restablecer datos de ejemplo</button><button class="btn d" onclick="delDemo()">Eliminar productos de ejemplo</button></div><p class="mu">Los productos se guardan en Supabase. Los pedidos son de prueba y no generan cobros.</p>`;
+  return `<div class="acts"><button class="btn s" onclick="resetDemo()">Restablecer datos de ejemplo</button></div><p class="mu">Los productos y pedidos se gestionan desde Supabase.</p>`;
 }
 
 function blankProduct() {

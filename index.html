@@ -191,6 +191,41 @@ section.f{border-color:var(--glass-brd);border-radius:16px;box-shadow:0 1px 0 rg
   .brand{font-size:16px}
   .grid{gap:16px 10px}
 }
+
+/* Tienda Ata — dark premium responsive pass */
+:root{--fg:#f2f0ea;--mu:#a6a79f;--ln:rgba(255,255,255,.10);--sf:#1b1d1a;--rd:#d35a4d;--olive:#879775;--glass:rgba(25,27,24,.78);--glass-strong:rgba(31,34,30,.90);--glass-brd:rgba(255,255,255,.11);--glass-hi:rgba(255,255,255,.06);--glass-dark:rgba(12,14,12,.94);--blur:18px}
+html{background:radial-gradient(circle at 50% -15%,rgba(112,128,91,.16),transparent 38%),linear-gradient(180deg,#101210 0%,#151714 48%,#0d0f0d 100%);background-attachment:fixed}
+body{background:transparent;color:var(--fg);min-width:0;overflow-x:hidden}
+.wrap{max-width:1180px;width:100%;padding:12px clamp(14px,3vw,28px) 72px}
+.hd{margin:0 calc(clamp(14px,3vw,28px) * -1) 24px;padding:11px clamp(14px,3vw,28px);background:rgba(20,22,19,.80);border-color:rgba(255,255,255,.10);box-shadow:0 12px 34px -24px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.05) inset}
+.brand{color:#f5f3ed}.hd nav a{color:#d9d8d1}.hd nav a:hover{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.10);color:#fff}
+.btn{background:#eceae3;color:#171915;border-color:#eceae3}.btn:hover{background:#fff;box-shadow:0 10px 24px -14px rgba(0,0,0,.9)}
+.btn.s{background:rgba(255,255,255,.06);color:#eee;border-color:rgba(255,255,255,.12)}.btn.s:hover{background:rgba(255,255,255,.11)}
+.btn.d{background:rgba(211,90,77,.10);color:#f07b6e;border-color:rgba(211,90,77,.45)}
+input,select,textarea{background:#20231f;color:#f0eee7;border-color:rgba(255,255,255,.13)}
+input::placeholder,textarea::placeholder{color:#85877f}input:hover,select:hover,textarea:hover{border-color:rgba(255,255,255,.22)}
+input:focus,select:focus,textarea:focus{border-color:var(--olive);box-shadow:0 0 0 3px rgba(135,151,117,.16)}
+label{color:#9fa198}label.ck{color:#e8e6df}
+.srch,.flt,.tabs,.bar{background:rgba(25,27,24,.80);border-color:rgba(255,255,255,.10);box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 16px 34px -30px rgba(0,0,0,.9)}
+.srch input{background:transparent;border-color:transparent}
+.chips a{background:rgba(255,255,255,.055);color:#e8e6df;border-color:rgba(255,255,255,.11)}.chips a:hover{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.18)}
+.grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,205px),1fr));gap:22px 18px}.card{color:#eee}.card:hover{box-shadow:0 18px 30px -26px rgba(0,0,0,.95)}
+.card img,.card .ph,.track,.thm,.ci img{background:#1a1c19;border-color:rgba(255,255,255,.06)}
+.card em,.gb,.cnt{background:rgba(25,27,24,.82);color:#eee;border-color:rgba(255,255,255,.12)}.old{color:#85877f}.ph{color:#92948d}
+.flt label{color:#9fa198}.sz{background:#20231f;color:#eee;border-color:rgba(255,255,255,.14)}.sz:hover:not(:disabled){border-color:#aebba0}.sz.on{background:var(--olive);color:#11140f;border-color:var(--olive)}.sz:disabled{background:#171916;color:#656861}
+.tabs a{color:#d9d8d1}.tabs a:hover{background:rgba(255,255,255,.06)}.tabs a.on{background:#eceae3;color:#171915}
+section.f{background:#181a17;border-color:rgba(255,255,255,.10);box-shadow:0 1px 0 rgba(255,255,255,.04) inset}.dz{border-color:rgba(255,255,255,.18)}.dz.o{background:rgba(255,255,255,.05);border-color:#aebba0}
+.tn{background:#1b1d1a;border-color:rgba(255,255,255,.10)}.tn .ac button{background:#252823;color:#eee;border-color:rgba(255,255,255,.14)}.nm{background:#eceae3;color:#171915}.tn i{background:rgba(25,27,24,.86);color:#eee;border-color:rgba(255,255,255,.12)}
+.note{background:rgba(183,139,45,.12);border-color:rgba(208,170,75,.32);color:#e8d9aa}.pf{border-color:rgba(255,255,255,.10)}.pf a,.ahd a{color:#999b93}.bad{background:rgba(255,255,255,.08)!important}.low{border-color:#d35a4d!important}
+.modal{background:rgba(3,5,3,.72)}.phone{background:#151714;border-color:#30332e}.toast{background:rgba(12,14,12,.94)}
+:focus-visible{outline-color:#d8d5cb}
+@media(max-width:800px){.hd{align-items:center}.hd nav{overflow-x:auto;max-width:68vw;scrollbar-width:none}.hd nav::-webkit-scrollbar{display:none}.pd{grid-template-columns:1fr}}
+@media(max-width:600px){.wrap{padding-left:12px;padding-right:12px;padding-bottom:64px}.hd{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.brand{font-size:16px}.hd nav a{min-height:40px;padding:6px 9px;font-size:12px;white-space:nowrap}h1{font-size:clamp(24px,7vw,30px)}.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 10px}.card img,.card .ph{border-radius:13px}.flt{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:11px}.srch{width:100%}.srch .btn{padding-left:11px;padding-right:11px}.bar{margin-left:-12px;margin-right:-12px;padding-left:12px;padding-right:12px}.btn{max-width:100%}.acts>*{flex:1 1 140px}}
+@media(max-width:390px){.hd nav a{padding-left:7px;padding-right:7px}.grid{gap:15px 8px}.card b{font-size:14px}.flt{grid-template-columns:1fr}}
+@media(min-width:601px) and (max-width:900px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(prefers-reduced-transparency:reduce){.hd,.srch,.flt,.tabs,.bar{background:#171a17}.chips a,.btn.s,.gb,.cnt,.card em{background:#20231f}}
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){.hd,.srch,.flt,.tabs,.bar{background:#171a17}.chips a,.btn.s,.gb,.cnt,.card em{background:#20231f}}
+
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
 <div class="wrap" id="app"></div>
 <script src="/app.js" defer></script></body></html>

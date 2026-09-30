@@ -171,7 +171,7 @@ async function save() {
 }
 
 function shell(content) {
-  return `<header class="hd"><div class="brand">Tienda Ata</div><nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a></nav></header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div><div class="copyright">© 2026 <strong>JHNder</strong>. Todos los derechos reservados.</div></footer>`;
+  return `<header class="hd"><div class="brand">Tienda Ata</div><nav><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a></nav></header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
 }
 
 function productCard(product) {

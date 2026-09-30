@@ -242,7 +242,7 @@ function home() {
     <section class="store-tools"><form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><span class="search-icon">⌕</span><input name="q" placeholder="¿Qué estás buscando?" aria-label="Buscar"><button class="btn">Buscar</button></form><div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div></section>
     <section class="store-section"><div class="section-head"><div><span class="eyebrow">DESCUBRE</span><h2>Categorías</h2></div><a href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
     <section class="store-section"><div class="section-head"><div><span class="eyebrow">SELECCIÓN ATA</span><h2>Lo más reciente</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div></section>
-    ${offers.length ? `<section class="store-section offer-block"><div class="section-head"><div><span class="eyebrow">OPORTUNIDADES</span><h2>Ofertas</h2></div><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`);
+    ${offers.length ? `<section class="store-section offer-block"><div class="section-head"><div><span class="eyebrow">OPORTUNIDADES</span><h2>Ofertas</h2></div><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
 }
 
 function filteredProducts() {

@@ -37,6 +37,8 @@
   ].join(',');
 
   const initialized = new WeakMap();
+  const filterIds = new WeakMap();
+  let filterSequence = 0;
   let advancedSupported = false;
 
   try {
@@ -128,7 +130,11 @@
         const key = width + 'x' + height + ':' + blur + ':' + depth + ':' + strength + ':' + chromatic;
         if (state.key === key) return;
         state.key = key;
-        const id = 'ta-' + Math.random().toString(36).slice(2, 10);
+        let id = filterIds.get(element);
+        if (!id) {
+          id = 'ta-' + (++filterSequence).toString(36);
+          filterIds.set(element, id);
+        }
         const filterUrl = buildFilter(id, width, height, 18, depth, strength, chromatic);
         element.style.setProperty('--lg-filter', 'url("' + filterUrl + '")');
       } else if (state.key !== width + 'x' + height + ':' + blur) {

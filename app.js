@@ -183,9 +183,6 @@ function shell(content) {
       <a href="#/">Inicio</a>
       <a href="#/catalogo">Catálogo</a>
       <a href="#/carrito">Carrito (<span id="cc">${cartCount()}</span>)</a>
-      <div class="account-area" id="clerk-account" aria-label="Cuenta">
-        <button class="account-login" type="button" onclick="openClerkSignIn()">Iniciar sesión</button>
-      </div>
     </nav>
   </header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
 }

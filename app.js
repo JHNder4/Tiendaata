@@ -209,18 +209,15 @@ function shell(content) {
   return `<header class="hd">
     <a class="brand" href="#/">Tienda Ata</a>
     <nav>
-      <a href="#/">Inicio</a>
-      <a href="#/catalogo">Catálogo</a>
-      <a href="#/carrito">Carrito <span class="cart-pill" id="cc">${cartCount()}</span></a>
+      <a class="nav-btn" href="#/">Inicio</a>
+      <a class="nav-btn" href="#/catalogo">Catálogo</a>
+      <a class="nav-btn" href="#/carrito">Carrito <span class="cart-pill" id="cc">${cartCount()}</span></a>
+      <button class="theme-btn" id="theme-toggle" type="button" aria-label="Cambiar tema"></button>
     </nav>
   </header>
   <main class="store-main">${content}</main>
   <footer class="pf">
-    <div class="pf-main">
-      <div><strong>Tienda Ata</strong><p>Moda, estilo y piezas seleccionadas.</p></div>
-      <div class="pf-nav"><a href="#/">Inicio</a><a href="#/catalogo">Catálogo</a><a href="#/carrito">Carrito</a><a href="#/admin">Administración</a></div>
-    </div>
-    <div class="pf-bottom"><span>© ${new Date().getFullYear()} Tienda Ata. Todos los derechos reservados.</span><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div>
+    <div class="pf-bottom"><span>© ${new Date().getFullYear()}</span><div class="pf-nav"><a class="nav-btn" href="#/admin">Administración</a><button class="top-btn btn s sm" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">↑</button></div></div>
   </footer>`;
 }
 
@@ -233,12 +230,12 @@ function home() {
   const list = publishedProducts();
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
   return `<section class="store-section home-minimal">
-    <div class="minimal-head"><span>TIENDA ATA</span><a href="#/catalogo">Catálogo →</a></div>
     <div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div>
   </section>
-  <section class="store-section minimal-categories"><div class="section-head"><h2>Categorías</h2><a href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
-  ${offers.length ? `<section class="store-section"><div class="section-head"><h2>Ofertas</h2><a href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
+  <section class="store-section minimal-categories"><div class="section-head"><h2>Categorías</h2><a class="nav-btn" href="#/catalogo">Ver todo →</a></div><div class="chips">${CATEGORIES.map((category) => `<a class="control-btn" href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div></section>
+  ${offers.length ? `<section class="store-section"><div class="section-head"><h2>Ofertas</h2><a class="nav-btn" href="#/catalogo">Ver todo →</a></div><div class="grid">${offers.slice(0,8).map(productCard).join("")}</div></section>` : ""}`;
 }
+
 function filteredProducts() {
   const query = String(F.q || '').toLowerCase();
   return publishedProducts().filter((product) =>
@@ -889,6 +886,7 @@ function render() {
     const section = route[1] || 'dashboard';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
+    applyTheme(); bindThemeToggle();
     if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
     else { result.after?.(); if (section === 'promociones') bindPromotions(); }
     $('#logout-button')?.addEventListener('click', () => { void signOut(); });
@@ -906,9 +904,30 @@ function render() {
   else if (route[0] === 'confirmacion') content = done(route[1]);
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
+  applyTheme(); bindThemeToggle();
   if (route[0] === 'catalogo') renderProductList();
   if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
   after?.();
+}
+
+function applyTheme() {
+  const theme = localStorage.getItem('tienda-ata-theme') || 'light';
+  document.documentElement.dataset.theme = theme;
+  const button = document.getElementById('theme-toggle');
+  if (button) {
+    button.textContent = theme === 'dark' ? '☀ Claro' : '☾ Oscuro';
+    button.setAttribute('aria-label', theme === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro');
+  }
+}
+function bindThemeToggle() {
+  const button = document.getElementById('theme-toggle');
+  if (!button || button.dataset.bound) return;
+  button.dataset.bound = '1';
+  button.addEventListener('click', () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    localStorage.setItem('tienda-ata-theme', next);
+    applyTheme();
+  });
 }
 
 function handleRouteChange() {
@@ -956,4 +975,5 @@ async function init(){
   render();
   if(location.hash.startsWith('#/admin')) void verifyAdminSession();
 }
+applyTheme();
 void init();

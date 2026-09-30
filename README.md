@@ -1,61 +1,39 @@
 # Tienda Ata
 
-
 ## Arquitectura
 
 - **Tienda pública:** HTML/CSS/JavaScript sin proceso de build.
-- **Supabase:** productos, pedidos, promociones e imágenes.
+- **Supabase Auth:** acceso al panel mediante correo + contraseña y sesión JWT.
+- **Supabase Database:** productos, pedidos y promociones protegidos con RLS.
+- **Supabase Storage:** imágenes en el bucket público `fotos`; solo sesiones autenticadas pueden subir, cambiar o eliminar imágenes.
 - **Vercel:** hosting y despliegue de la tienda.
 
-El panel de administración usa un código de acceso validado en una Edge Function de Supabase. El código no se guarda en el repositorio.
+## Administración
 
-## Variables necesarias
+`/admin` está protegido por Supabase Auth:
 
-### Vercel
+- Correo + contraseña.
+- Sesión persistente al recargar.
+- Verificación de sesión antes de cargar pedidos, productos o promociones.
+- Cerrar sesión con `supabase.auth.signOut()`.
+- Sin Clerk.
+- Sin `ATA-2026-ADMIN`.
+- Las operaciones administrativas usan la sesión/JWT de Supabase y las políticas RLS.
 
-Configura como variables de entorno de producción:
+La pantalla también permite crear una cuenta con correo y contraseña. Si el proyecto tiene confirmación de correo activada, primero hay que confirmar el correo recibido y después iniciar sesión.
 
+## Variables
 
-
-### Supabase Edge Function
-
-En los secretos de la función `admin-panel`:
-
-
-
-Los secretos de Supabase deben permanecer fuera de Git. Supabase documenta que los secretos de producción se administran desde el Dashboard o con `supabase secrets set`. 
-
-
-
-
-La ruta real del proyecto es:
-
-
-
-
-```bash
-```
-
-
-```bash
-```
-
-No se deben guardar claves secretas en el repositorio.
+La tienda usa la clave **publishable** de Supabase en el navegador. No se debe colocar nunca una secret/service-role key en el frontend.
 
 ## Supabase
 
-La función administrativa se mantiene en:
+Las migraciones de seguridad están en:
 
-`supabase/functions/admin-panel/index.ts`
+- `supabase/migrations/20260930085231_supabase_auth_admin_access.sql`
+- `supabase/migrations/20260930085234_supabase_auth_permissions.sql`
 
-
-Para desplegarla manualmente:
-
-```bash
-npx supabase functions deploy admin-panel --project-ref svvylvtmmynxkmdowymx
-```
-
-El workflow de GitHub `.github/workflows/supabase-functions.yml` también puede desplegarla automáticamente después de configurar los secretos de GitHub correspondientes.
+La Edge Function heredada `admin-panel` ya no participa en el panel y fue reemplazada por una respuesta 410 con JWT obligatorio para cerrar el antiguo flujo de código/Clerk.
 
 ## Desarrollo local
 
@@ -70,4 +48,6 @@ Abre `http://localhost:4173`.
 ## Seguridad
 
 - La clave publicable de Supabase no sustituye RLS.
-- El panel administrativo no depende de un código almacenado en el navegador.
+- Los datos administrativos requieren una sesión autenticada.
+- El frontend nunca contiene una clave secreta de Supabase.
+- El catálogo público solo expone productos publicados y promociones activas.

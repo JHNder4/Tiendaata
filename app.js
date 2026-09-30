@@ -1,6 +1,5 @@
 const SB_URL = 'https://svvylvtmmynxkmdowymx.supabase.co';
 const SB_PUBLISHABLE_KEY = 'sb_publishable_RYbyrmTxY4Qv2rKTuxeT6Q_70Juauak';
-const ADMIN_FN = SB_URL + '/functions/v1/admin-panel';
 const client = window.supabase.createClient(SB_URL, SB_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 });
@@ -43,10 +42,9 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
 }));
 
 let S = { p: [], o: [], c: [], promos: [] };
-let session = null;
 let isAdmin = false;
 let authChecking = false;
-let clerkReady = false;
+const ADMIN_CODE_KEY = 'tiendaAtaAdminCode';
 let ready = false;
 let dirty = false;
 let currentRoute = location.hash;
@@ -136,10 +134,13 @@ const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Nu
 const go = (hash) => { location.hash = hash; };
 
 async function adminRequest(action, extra = {}) {
-  if (!window.Clerk?.session) throw new Error('Inicia sesión como administrador.');
-  const token = await window.Clerk.session.getToken();
-  if (!token) throw new Error('La sesión de administrador no está disponible.');
-  const response = await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({action,...extra})});
+  const code = localStorage.getItem(ADMIN_CODE_KEY) || '';
+  if (!code) throw new Error('Introduce el código de administrador.');
+  const response = await fetch(SB_URL + '/functions/v1/admin-panel',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','x-admin-code':code},
+    body:JSON.stringify({action,...extra})
+  });
   const result = await response.json().catch(()=>({}));
   if(!response.ok||result.error)throw new Error(result.error||'No se pudo completar la operación.');
   return result;
@@ -188,50 +189,6 @@ function shell(content) {
     </nav>
   </header>${content}<footer class="pf"><div class="pf-links"><a href="#/admin">Panel de administración</a><button class="top-btn" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">Volver arriba ↑</button></div></footer>`;
 }
-
-function openClerkSignIn() {
-  if (!window.Clerk || !clerkReady) {
-    toast('Cargando inicio de sesión…');
-    void window.__clerkReady?.then(() => openClerkSignIn());
-    return;
-  }
-  window.Clerk.openSignIn({
-    fallbackRedirectUrl: location.href,
-    signUpFallbackRedirectUrl: location.href
-  });
-}
-
-function mountHeaderAuth() {
-  const host = $('#clerk-account');
-  if (!host || !clerkReady || !window.Clerk) return;
-  if (window.Clerk.user) {
-    if (host.dataset.mounted === '1') return;
-    host.innerHTML = '';
-    host.dataset.mounted = '1';
-    window.Clerk.mountUserButton(host, { afterSignOutUrl: location.href });
-  } else {
-    host.dataset.mounted = '';
-    host.innerHTML = '<button class="account-login" type="button" onclick="openClerkSignIn()">Iniciar sesión</button>';
-  }
-}
-
-function ensureClerkHeaderStyles() {
-  if ($('#clerk-header-styles')) return;
-  const style = document.createElement('style');
-  style.id = 'clerk-header-styles';
-  style.textContent = `
-    .account-area{display:inline-flex;align-items:center;justify-content:center;margin-left:4px;min-height:38px}
-    .account-login{appearance:none;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.07);color:#f5f5f7;border-radius:999px;padding:9px 15px;font:inherit;font-size:13px;font-weight:550;cursor:pointer;box-shadow:inset 0 1px rgba(255,255,255,.08),0 10px 25px rgba(0,0,0,.12);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);transition:transform .16s ease,background .16s ease}
-    .account-login:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
-    .account-login:active{transform:scale(.98)}
-    body.light-mode .account-login{background:rgba(255,255,255,.72);border-color:rgba(0,0,0,.10);color:#1d1d1f}
-    body.light-mode .account-login:hover{background:rgba(255,255,255,.92)}
-    @media(max-width:600px){.account-area{margin-left:0}.account-login{padding:8px 11px;font-size:12px}}
-  `;
-  document.head.appendChild(style);
-}
-
-
 
 function productCard(product) {
   const photos = product.photos || [];
@@ -415,44 +372,52 @@ function done(orderNumber) {
 }
 
 function adminLogin(){
-  return `<section class="f clerk-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta autorizada de Google.</p><div id="clerk-sign-in"></div><p id="login-error" class="mu" role="alert"></p></section>`;
+  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Introduce el código para entrar al panel.</p><form id="admin-login-form"><label>Código de acceso<input id="admin-code" type="password" autocomplete="current-password" required placeholder="Código de administrador"></label><button class="btn" type="submit">Entrar al panel</button><p id="login-error" class="mu" role="alert"></p></form></section>`;
 }
-function adminDenied() {
-  return `<section class="f"><h2>Cuenta sin permisos de administración</h2><p class="mu">Tu cuenta está autenticada, pero no está autorizada para administrar Tienda Ata.</p><button class="btn s" id="logout-button">Cerrar sesión</button></section>`;
-}
-
 function bindAdminLogin(){
-  if (!window.Clerk) return;
-  if (window.Clerk.user) {
-    if (!authChecking && !isAdmin) void verifyAdminSession();
-    return;
-  }
-  const host=$('#clerk-sign-in');
-  if (!host || host.dataset.mounted) return;
-  host.dataset.mounted='1';
-  window.Clerk.mountSignIn(host,{oauthFlow:'redirect',withSignUp:true,fallbackRedirectUrl:location.href});
+  const form=$('#admin-login-form');
+  if(!form || form.dataset.bound) return;
+  form.dataset.bound='1';
+  form.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    const input=$('#admin-code'), error=$('#login-error'), button=form.querySelector('button');
+    const code=input.value.trim();
+    if(!code) return;
+    button.disabled=true; button.textContent='Verificando…'; error.textContent='';
+    localStorage.setItem(ADMIN_CODE_KEY,code);
+    try {
+      const result=await adminRequest('check');
+      if(!result.ok) throw new Error('Código incorrecto.');
+      isAdmin=true;
+      await loadProducts(); await loadOrders(); await loadPromotions();
+      render();
+      toast('Acceso concedido.');
+    } catch(errorValue) {
+      localStorage.removeItem(ADMIN_CODE_KEY);
+      isAdmin=false;
+      error.textContent=errorValue.message || 'Código incorrecto.';
+      button.disabled=false; button.textContent='Entrar al panel';
+    }
+  });
 }
-
 async function verifyAdminSession(){
   if (authChecking) return;
   authChecking=true;
-  session=window.Clerk?.session||null;
   try {
     const result=await adminRequest('check');
     isAdmin=!!result.ok;
     if (isAdmin) { await loadProducts(); await loadOrders(); await loadPromotions(); }
   } catch(error) {
     isAdmin=false;
-    console.warn('Cuenta sin acceso administrativo:',error);
+    localStorage.removeItem(ADMIN_CODE_KEY);
   } finally {
     authChecking=false;
     render();
   }
 }
-
-async function signOut(){
-  try { await window.Clerk?.signOut(); } catch (_) {}
-  session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');
+function signOut(){
+  localStorage.removeItem(ADMIN_CODE_KEY);
+  isAdmin=false;S.o=[];S.promos=[];render();toast('Sesión cerrada.');
 }
 
 function adminShell(section, content) {
@@ -761,7 +726,7 @@ async function saveP(status) {
 }
 
 function loginOrAdminContent(section, route) {
-  if (!window.Clerk?.user) return adminLogin();
+  if (!isAdmin) return adminLogin();
   if (authChecking) return '<section class="f"><h2>Verificando acceso…</h2><p class="mu">Comprobando permisos de administración.</p></section>';
   if (!isAdmin) return adminDenied();
   let content;
@@ -788,10 +753,8 @@ function render() {
     const section = route[1] || 'pedidos';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
-    ensureClerkHeaderStyles();
-    mountHeaderAuth();
     if (typeof result === 'string') bindAdminLogin();
-    else { result.after?.(); bindAdminLogin(); if (section === 'promociones') bindPromotions(); }
+    else { result.after?.(); if (section === 'promociones') bindPromotions(); }
     return;
   }
 
@@ -806,8 +769,6 @@ function render() {
   else if (route[0] === 'confirmacion') content = done(route[1]);
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
-  ensureClerkHeaderStyles();
-  mountHeaderAuth();
   if (route[0] === 'catalogo') renderProductList();
   if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
   after?.();
@@ -826,6 +787,5 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-async function init(){try{if(window.__clerkReady) { await window.__clerkReady; clerkReady=!!window.Clerk; } session=window.Clerk?.session||null;await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')&&window.Clerk?.user&&!isAdmin) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
-
+async function init(){try{await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
 void init();

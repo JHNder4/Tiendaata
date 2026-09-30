@@ -258,6 +258,345 @@ html[data-theme="dark"] .glass-banner:after{background:linear-gradient(90deg,rgb
 .ata-chat{position:fixed;right:20px;bottom:88px;z-index:81;width:min(390px,calc(100vw - 28px));height:min(590px,calc(100vh - 120px));display:flex;flex-direction:column;overflow:hidden;border:1px solid rgba(255,255,255,.78);border-radius:24px;background:rgba(255,255,255,.66);box-shadow:0 28px 80px rgba(31,38,46,.22);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%)}.ata-chat[hidden]{display:none}.ata-chat-head{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid rgba(31,38,46,.09)}.ata-chat-head div{display:flex;flex-direction:column;gap:2px}.ata-chat-head span{font-size:11px;color:var(--mu)!important}.ata-chat-close{width:34px;height:34px;border:0;border-radius:50%;background:rgba(255,255,255,.5);font-size:24px;cursor:pointer;color:var(--fg)}.ata-chat-messages{flex:1;overflow:auto;padding:16px}.ata-msg{max-width:84%;margin:0 0 10px;padding:10px 13px;border-radius:16px;line-height:1.42;font-size:13px;white-space:pre-wrap}.ata-msg.bot{margin-right:auto;background:rgba(255,255,255,.64);border:1px solid rgba(255,255,255,.72)}.ata-msg.user{margin-left:auto;background:var(--fg);color:#fff;border:1px solid var(--fg)}.ata-chat-form{display:flex;gap:8px;padding:12px;border-top:1px solid rgba(31,38,46,.09)}.ata-chat-form input{min-width:0;flex:1;background:rgba(255,255,255,.58);border-color:rgba(255,255,255,.8)}.ata-chat-form .btn{padding:9px 14px;white-space:nowrap}.ata-chat-actions{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.ata-chat-product{border:1px solid rgba(31,38,46,.12);border-radius:10px;background:rgba(255,255,255,.72);color:var(--fg);padding:7px 9px;font-size:11px;cursor:pointer}.ata-chat-product:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(31,38,46,.10)}html[data-theme="dark"] .ata-chat-product{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.13);color:var(--fg)}
 html[data-theme="dark"] .ata-chat-fab,html[data-theme="dark"] .ata-chat{background:rgba(28,31,28,.68);border-color:rgba(255,255,255,.14);box-shadow:0 28px 80px rgba(0,0,0,.4)}html[data-theme="dark"] .ata-chat-head,html[data-theme="dark"] .ata-chat-form{border-color:rgba(255,255,255,.10)}html[data-theme="dark"] .ata-msg.bot{background:rgba(255,255,255,.07);border-color:rgba(255,255,255,.11)}html[data-theme="dark"] .ata-chat-close,html[data-theme="dark"] .ata-chat-form input{background:rgba(255,255,255,.07);color:var(--fg);border-color:rgba(255,255,255,.13)}
 @media(max-width:700px){.ata-chat-fab{right:14px;bottom:14px}.ata-chat{right:10px;bottom:82px;width:calc(100vw - 20px);height:min(600px,calc(100vh - 100px));border-radius:20px}}
+
+/* ─────────────────────────────────────────────────────────────
+   TIENDA ATA — Liquid Glass visual system
+   Uses the Liquid Glass JS-inspired displacement engine loaded
+   from /liquid-glass-engine.js.
+   ───────────────────────────────────────────────────────────── */
+:root{
+  --lg-blue:rgba(105,165,255,.34);
+  --lg-violet:rgba(170,128,255,.24);
+  --lg-pink:rgba(255,130,184,.22);
+  --lg-cyan:rgba(89,224,226,.18);
+  --lg-green:rgba(154,214,130,.18);
+  --lg-surface:rgba(255,255,255,.48);
+  --lg-surface-strong:rgba(255,255,255,.62);
+  --lg-border:rgba(255,255,255,.62);
+  --lg-shadow:0 22px 60px rgba(42,56,79,.12),0 2px 8px rgba(42,56,79,.06),inset 0 1px 0 rgba(255,255,255,.72);
+  --lg-glow:0 0 0 1px rgba(255,255,255,.26) inset;
+}
+html{
+  background:
+    radial-gradient(circle at 8% 4%,rgba(255,255,255,.95),transparent 22%),
+    radial-gradient(circle at 90% 2%,rgba(200,221,255,.56),transparent 28%),
+    linear-gradient(120deg,#eef4fb 0%,#f8f7fb 44%,#f7f0f5 100%) !important;
+  background-attachment:fixed;
+}
+body{
+  position:relative;
+  min-height:100vh;
+  overflow-x:hidden;
+  background:
+    radial-gradient(circle at 12% 20%,var(--lg-blue),transparent 25%),
+    radial-gradient(circle at 86% 16%,var(--lg-pink),transparent 24%),
+    radial-gradient(circle at 63% 76%,var(--lg-violet),transparent 27%),
+    radial-gradient(circle at 18% 86%,var(--lg-green),transparent 23%),
+    linear-gradient(135deg,#edf3fa 0%,#f8f7fb 48%,#f5eef4 100%) !important;
+  background-size:140% 140%;
+  animation:ataAurora 18s ease-in-out infinite alternate;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:-22%;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 15% 22%,rgba(115,173,255,.28),transparent 18%),
+    radial-gradient(circle at 82% 18%,rgba(255,126,182,.22),transparent 17%),
+    radial-gradient(circle at 68% 78%,rgba(166,125,255,.20),transparent 20%);
+  filter:blur(28px) saturate(118%);
+  opacity:.82;
+  animation:ataOrbs 24s ease-in-out infinite alternate;
+}
+.wrap{position:relative;z-index:1}
+@keyframes ataAurora{
+  0%{background-position:0% 0%}
+  50%{background-position:75% 35%}
+  100%{background-position:100% 100%}
+}
+@keyframes ataOrbs{
+  0%{transform:translate3d(-2%,0,0) scale(1)}
+  50%{transform:translate3d(3%,-2%,0) scale(1.04)}
+  100%{transform:translate3d(-1%,3%,0) scale(1.08)}
+}
+
+/* Real Liquid Glass surfaces */
+.liquid-glass-surface{
+  --lg-opacity:.9;
+  --lg-scale:1;
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  background:
+    linear-gradient(135deg,rgba(255,255,255,.60),rgba(255,255,255,.24) 48%,rgba(255,255,255,.42)) !important;
+  border:1px solid var(--lg-border) !important;
+  box-shadow:var(--lg-shadow),var(--lg-glow) !important;
+  backdrop-filter:
+    blur(var(--lg-blur,18px))
+    saturate(1.25)
+    contrast(1.06)
+    brightness(1.04)
+    var(--lg-filter,none) !important;
+  -webkit-backdrop-filter:
+    blur(var(--lg-blur,18px))
+    saturate(1.25)
+    contrast(1.06)
+    brightness(1.04) !important;
+  transform:translateZ(0) scale(var(--lg-scale));
+  transition:
+    transform .35s cubic-bezier(.2,.7,.2,1),
+    box-shadow .35s cubic-bezier(.2,.7,.2,1),
+    border-color .35s ease,
+    background .35s ease;
+}
+.liquid-glass-surface::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:0;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 10% 0%,rgba(255,255,255,.72),transparent 28%),
+    radial-gradient(circle at 100% 100%,rgba(255,255,255,.30),transparent 32%),
+    linear-gradient(110deg,rgba(255,255,255,.14),transparent 32%,rgba(255,255,255,.08) 68%,transparent);
+  opacity:calc(.55 * var(--lg-opacity));
+  mix-blend-mode:screen;
+}
+.liquid-glass-surface > *{position:relative;z-index:1}
+.liquid-glass-surface:hover{
+  --lg-opacity:1;
+  --lg-scale:1.012;
+  border-color:rgba(255,255,255,.78) !important;
+  box-shadow:
+    0 30px 72px rgba(42,56,79,.15),
+    0 8px 24px rgba(42,56,79,.09),
+    inset 0 1px 0 rgba(255,255,255,.86) !important;
+}
+.liquid-glass-surface:active{--lg-scale:.995}
+.liquid-glass-surface:focus-visible{
+  outline:2px solid rgba(95,143,255,.62);
+  outline-offset:3px;
+}
+
+/* Header, navigation and controls */
+.hd{
+  border-radius:0 0 24px 24px !important;
+  padding-top:11px !important;
+  padding-bottom:11px !important;
+}
+.hd .brand{font-weight:750;letter-spacing:-.055em}
+.nav-btn,.theme-btn,.control-btn,.departments a,.tabs a,.chips a,.btn.s,.gb,.cnt,.sz{
+  box-shadow:
+    0 9px 26px rgba(48,62,84,.08),
+    inset 0 1px 0 rgba(255,255,255,.76) !important;
+}
+.nav-btn:hover,.theme-btn:hover,.control-btn:hover,.departments a:hover,.tabs a:hover,.chips a:hover{
+  background:rgba(255,255,255,.68) !important;
+  border-color:rgba(255,255,255,.88) !important;
+}
+.btn.s{
+  background:rgba(255,255,255,.50) !important;
+  color:var(--fg) !important;
+}
+.btn.s:hover{background:rgba(255,255,255,.72) !important}
+
+/* Product surfaces: glass frame + soft image bed */
+.card{
+  border-radius:20px !important;
+  padding:8px !important;
+  background:rgba(255,255,255,.30) !important;
+}
+.card img,.card .ph{
+  border-radius:15px !important;
+  background:
+    linear-gradient(145deg,rgba(255,255,255,.42),rgba(230,236,244,.34)) !important;
+}
+.card b{padding:0 3px}
+.card>span{padding:0 3px 4px}
+.card em{top:16px !important;left:16px !important}
+.card:hover{transform:translateY(-5px) !important}
+.grid,.home-products{gap:24px 20px}
+
+/* Hero/banner: more depth and refracted light */
+.glass-banner{
+  border-radius:30px !important;
+  min-height:280px !important;
+  background:
+    linear-gradient(125deg,rgba(255,255,255,.60),rgba(255,255,255,.18) 52%,rgba(255,255,255,.44)) !important;
+}
+.glass-banner .banner-image{opacity:.34 !important;filter:saturate(.95) contrast(1.02)}
+.glass-banner::before{
+  background:
+    radial-gradient(circle at 80% 16%,rgba(120,175,255,.22),transparent 22%),
+    radial-gradient(circle at 24% 88%,rgba(255,142,193,.16),transparent 25%),
+    linear-gradient(90deg,rgba(255,255,255,.38),transparent 58%) !important;
+}
+.banner-copy{padding:42px !important}
+.banner-copy h2{font-weight:750}
+.banner-kind{letter-spacing:.18em}
+
+/* Filters, admin cards and checkout panels */
+.flt,.f,.tabs,.bar,.srch,.related-products,.related-card,.tn{
+  border-radius:20px !important;
+}
+.flt,.f,.tabs,.bar,.srch,.related-products{
+  background:rgba(255,255,255,.40) !important;
+}
+section.f{
+  box-shadow:
+    0 18px 44px rgba(42,56,79,.08),
+    inset 0 1px 0 rgba(255,255,255,.76) !important;
+}
+input,select,textarea{
+  background:rgba(255,255,255,.48) !important;
+  border-color:rgba(255,255,255,.72) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.62) !important;
+}
+
+/* Detail gallery and cart */
+.track{
+  border-radius:22px !important;
+  background:rgba(255,255,255,.26) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 16px 40px rgba(42,56,79,.07) !important;
+}
+.gb,.cnt,.sz{background:rgba(255,255,255,.46) !important}
+.sz.on{background:rgba(37,39,32,.88) !important;color:#fff !important}
+.ci{
+  border-color:rgba(255,255,255,.48) !important;
+}
+.ci img,.th button{
+  background:rgba(255,255,255,.34) !important;
+  border-color:rgba(255,255,255,.62) !important;
+}
+.related-card{
+  background:rgba(255,255,255,.34) !important;
+  border:1px solid rgba(255,255,255,.66) !important;
+  box-shadow:0 16px 36px rgba(42,56,79,.08),inset 0 1px 0 rgba(255,255,255,.74) !important;
+}
+
+/* Assistant: floating pane and orb */
+.ata-chat-fab{
+  border:1px solid rgba(255,255,255,.78) !important;
+  background:
+    radial-gradient(circle at 30% 25%,rgba(255,255,255,.88),rgba(255,255,255,.34) 38%,rgba(188,217,255,.38) 100%) !important;
+  box-shadow:
+    0 20px 46px rgba(54,76,108,.18),
+    inset 0 1px 0 rgba(255,255,255,.90) !important;
+}
+.ata-chat{
+  background:rgba(255,255,255,.48) !important;
+  border-color:rgba(255,255,255,.76) !important;
+  box-shadow:
+    0 30px 90px rgba(38,53,76,.20),
+    inset 0 1px 0 rgba(255,255,255,.82) !important;
+}
+.ata-msg.bot{
+  background:rgba(255,255,255,.48) !important;
+  border-color:rgba(255,255,255,.64) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6)
+}
+.ata-chat-product{background:rgba(255,255,255,.45) !important}
+
+/* Soft fallback: never lose readability */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  body{animation:none !important;background:#f2f5f8 !important}
+  body::before{display:none}
+  .liquid-glass-surface,.flt,.f,.tabs,.bar,.srch,.related-products,.related-card{
+    background:#fdfefe !important;
+    box-shadow:0 10px 30px rgba(30,40,55,.10) !important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  body,body::before{animation:none !important}
+  .liquid-glass-surface{transition:none !important}
+}
+@media(prefers-reduced-transparency:reduce){
+  body::before{display:none}
+  .liquid-glass-surface,.flt,.f,.tabs,.bar,.srch,.related-products,.related-card{
+    background:rgba(248,249,251,.96) !important;
+    backdrop-filter:blur(8px) !important;
+    -webkit-backdrop-filter:blur(8px) !important;
+  }
+}
+
+/* Dark glass mode */
+html[data-theme="dark"]{
+  --lg-surface:rgba(28,34,43,.44);
+  --lg-surface-strong:rgba(34,40,50,.56);
+  --lg-border:rgba(255,255,255,.16);
+  --lg-shadow:0 24px 64px rgba(0,0,0,.28),0 2px 8px rgba(0,0,0,.18),inset 0 1px 0 rgba(255,255,255,.10);
+  --lg-blue:rgba(67,138,255,.28);
+  --lg-violet:rgba(145,103,255,.22);
+  --lg-pink:rgba(232,97,170,.18);
+}
+html[data-theme="dark"],html[data-theme="dark"] body{
+  background:
+    radial-gradient(circle at 12% 16%,rgba(56,112,209,.24),transparent 24%),
+    radial-gradient(circle at 88% 12%,rgba(158,86,164,.20),transparent 24%),
+    radial-gradient(circle at 66% 78%,rgba(84,145,129,.12),transparent 28%),
+    linear-gradient(140deg,#10141a 0%,#15171d 48%,#17131a 100%) !important;
+  background-attachment:fixed;
+}
+html[data-theme="dark"] body::before{
+  background:
+    radial-gradient(circle at 16% 20%,rgba(72,141,255,.25),transparent 19%),
+    radial-gradient(circle at 84% 18%,rgba(255,113,187,.16),transparent 17%),
+    radial-gradient(circle at 64% 80%,rgba(128,105,255,.18),transparent 20%);
+  opacity:.74;
+}
+html[data-theme="dark"] .liquid-glass-surface{
+  background:
+    linear-gradient(140deg,rgba(255,255,255,.11),rgba(255,255,255,.04) 52%,rgba(255,255,255,.08)) !important;
+  border-color:rgba(255,255,255,.16) !important;
+  box-shadow:var(--lg-shadow),inset 0 1px 0 rgba(255,255,255,.08) !important;
+}
+html[data-theme="dark"] .liquid-glass-surface::before{
+  background:
+    radial-gradient(circle at 10% 0%,rgba(255,255,255,.16),transparent 28%),
+    radial-gradient(circle at 100% 100%,rgba(112,164,255,.10),transparent 32%);
+}
+html[data-theme="dark"] .card{
+  background:rgba(255,255,255,.07) !important;
+}
+html[data-theme="dark"] .card img,html[data-theme="dark"] .card .ph,
+html[data-theme="dark"] .track,html[data-theme="dark"] .ci img{
+  background:rgba(255,255,255,.06) !important;
+}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{
+  background:rgba(255,255,255,.07) !important;
+  color:var(--fg) !important;
+}
+html[data-theme="dark"] .btn.s,html[data-theme="dark"] .nav-btn,html[data-theme="dark"] .theme-btn,
+html[data-theme="dark"] .control-btn,html[data-theme="dark"] .departments a,html[data-theme="dark"] .tabs a,
+html[data-theme="dark"] .chips a,html[data-theme="dark"] .gb,html[data-theme="dark"] .cnt,html[data-theme="dark"] .sz{
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.16) !important;
+}
+html[data-theme="dark"] .btn.s:hover,html[data-theme="dark"] .nav-btn:hover,html[data-theme="dark"] .theme-btn:hover,
+html[data-theme="dark"] .control-btn:hover,html[data-theme="dark"] .chips a:hover{
+  background:rgba(255,255,255,.14) !important;
+}
+html[data-theme="dark"] .glass-banner{
+  background:linear-gradient(135deg,rgba(255,255,255,.12),rgba(255,255,255,.04) 52%,rgba(255,255,255,.09)) !important;
+}
+html[data-theme="dark"] .glass-banner::after{
+  background:linear-gradient(90deg,rgba(10,12,16,.78),rgba(10,12,16,.38),rgba(10,12,16,.08)) !important;
+}
+html[data-theme="dark"] .ata-chat-fab{
+  background:radial-gradient(circle at 30% 25%,rgba(255,255,255,.28),rgba(255,255,255,.08) 42%,rgba(74,126,255,.20) 100%) !important;
+}
+html[data-theme="dark"] .ata-chat{
+  background:rgba(24,29,36,.54) !important;
+}
+@media(max-width:700px){
+  .card{padding:6px !important;border-radius:17px !important}
+  .card img,.card .ph{border-radius:13px !important}
+  .glass-banner{border-radius:23px !important}
+  .banner-copy{padding:28px 24px !important}
+}
+
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   if (!window.supabase) {
@@ -266,7 +605,7 @@ html[data-theme="dark"] .ata-chat-fab,html[data-theme="dark"] .ata-chat{backgrou
 </script></head><body>
 <div class="wrap" id="app"></div>
 
-<script src="/app.js" defer></script><script defer>
+<script src="/app.js" defer></script><script src="/liquid-glass-engine.js" defer></script><script defer>
 /* Tienda Ata — productos relacionados en detalle */
 (function(){
   const SUPABASE_URL='https://svvylvtmmynxkmdowymx.supabase.co';

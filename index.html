@@ -366,7 +366,7 @@ html{background:radial-gradient(900px 420px at 50% -8%,rgba(255,255,255,.10),tra
       await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=reject;document.head.appendChild(script);});
       await window.Clerk.load({proxyUrl:'/__clerk'});
       clerkReady=true;
-      window.Clerk.addListener?.(({user})=>{session=window.Clerk.session||null;isAdmin=false;if(location.hash.startsWith('#/admin')){render();if(user)void verifyAdminSession();}});
+      window.Clerk.addListener?.(({user})=>{session=window.Clerk.session||null;isAdmin=false;if(ready)render();if(location.hash.startsWith('#/admin')&&user)void verifyAdminSession();});
     }catch(error){console.error('Clerk no pudo iniciarse:',error);window.__clerkError=error;}
   })();
 })();

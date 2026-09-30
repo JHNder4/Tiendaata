@@ -14,6 +14,8 @@ const money = (amount) => '$' + Number(amount || 0).toLocaleString('es-MX') + ' 
 const K = 'tienda-ata-v1';
 const CART_KEY = K + '-carrito';
 const STATUS = { published: 'Publicado', draft: 'Borrador', hidden: 'Oculto' };
+const GENDERS = { general: 'General', hombre: 'Hombre', mujer: 'Mujer' };
+const CATEGORIES = ['Pantalones', 'Shorts', 'Playeras', 'Camisas', 'Sudaderas', 'Chamarras', 'Jeans', 'Vestidos', 'Faldas', 'Blusas', 'Conjuntos', 'Ropa interior', 'Accesorios', 'Calzado'];
 const ORDER_STATUSES = ['Pendiente de confirmar', 'Confirmado', 'Preparando', 'Enviado', 'Entregado', 'Cancelado'];
 const DEMO_PRODUCTS = [];
 
@@ -185,15 +187,17 @@ function home() {
   const categories = [...new Set(list.map((product) => product.cat).filter(Boolean))];
   const banners = activePromotions().filter((promo) => promo.scope === 'all');
   return `${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || 'Oferta')}</span><strong>${esc(promo.title)}</strong><p>${esc(promo.subtitle || '')}</p></div>`).join('')}</div>` : ''}<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><input name="q" placeholder="Buscar prendas" aria-label="Buscar"><button class="btn">Buscar</button></form>
-    <h2>Categorías</h2><div class="chips">${categories.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join('')}</div>
-    <h2>Novedades</h2><div class="grid">${list.slice(-4).reverse().map(productCard).join('') || '<p class="mu">Aún no hay productos publicados.</p>'}</div>
+    <div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div>
+    <h2>Categorías</h2><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join('')}</div>
+    <h2>General</h2><p class="mu">Toda la tienda en un solo lugar.</p><div class="grid">${list.slice(-8).reverse().map(productCard).join('') || '<p class="mu">Aún no hay productos publicados.</p>'}</div>
     ${offers.length ? `<h2>Ofertas</h2><div class="grid">${offers.map(productCard).join('')}</div>` : ''}`;
 }
 
 function filteredProducts() {
   const query = String(F.q || '').toLowerCase();
   return publishedProducts().filter((product) =>
-    (!query || `${product.name || ''} ${product.brand || ''} ${product.cat || ''}`.toLowerCase().includes(query)) &&
+    (!query || `${product.name || ''} ${product.brand || ''} ${product.cat || ''} ${GENDERS[product.gender] || ''}`.toLowerCase().includes(query)) &&
+    (!F.gender || (product.gender || 'general') === F.gender) &&
     (!F.cat || product.cat === F.cat) &&
     (!F.size || (!!product.sizes && stockForSize(product, F.size) > 0)) &&
     (!F.max || Number(product.price) <= Number(F.max)) &&
@@ -211,16 +215,16 @@ function renderProductList() {
 }
 
 function catalog(queryString) {
-  F = { q: queryString.get('q') || '', cat: queryString.get('cat') || '', size: '', max: '', av: false };
+  F = { q: queryString.get('q') || '', gender: queryString.get('genero') || '', cat: queryString.get('cat') || '', size: '', max: '', av: false };
   const list = publishedProducts();
   const sizes = [...new Set(list.flatMap((product) => product.sizes ? Object.keys(product.sizes) : []))];
-  return `<h1>Catálogo</h1><form class="flt" id="ff" oninput="filt()" onsubmit="return false"><label>Buscar<input name="q" value="${esc(F.q)}"></label><label>Categoría<select name="cat"><option value="">Todas</option>${[...new Set(list.map((product) => product.cat).filter(Boolean))].map((category) => `<option value="${esc(category)}" ${category === F.cat ? 'selected' : ''}>${esc(category)}</option>`).join('')}</select></label><label>Talla<select name="size"><option value="">Todas</option>${sizes.map((size) => `<option value="${esc(size)}">${esc(size)}</option>`).join('')}</select></label><label>Precio máximo<input name="max" type="number" min="0"></label><label class="ck"><input name="av" type="checkbox">Solo disponibles</label></form><div id="lst"></div>`;
+  return `<div class="departments"><a class="${!F.gender ? 'on' : ''}" href="#/catalogo">General</a><a class="${F.gender === 'hombre' ? 'on' : ''}" href="#/catalogo?genero=hombre">Hombre</a><a class="${F.gender === 'mujer' ? 'on' : ''}" href="#/catalogo?genero=mujer">Mujer</a></div><h1>${F.gender ? GENDERS[F.gender] : 'Catálogo general'}</h1><form class="flt" id="ff" oninput="filt()" onsubmit="return false"><label>Buscar<input name="q" value="${esc(F.q)}"></label><label>Sección<select name="gender"><option value="">General</option>${Object.entries(GENDERS).filter(([key])=>key!=='general').map(([key,label])=>`<option value="${key}" ${key === F.gender ? 'selected' : ''}>${label}</option>`).join('')}</select></label><label>Categoría<select name="cat"><option value="">Todas</option>${CATEGORIES.map((category) => `<option value="${esc(category)}" ${category === F.cat ? 'selected' : ''}>${esc(category)}</option>`).join('')}</select></label><label>Talla<select name="size"><option value="">Todas</option>${sizes.map((size) => `<option value="${esc(size)}">${esc(size)}</option>`).join('')}</select></label><label>Precio máximo<input name="max" type="number" min="0"></label><label class="ck"><input name="av" type="checkbox">Solo disponibles</label></form><div id="lst"></div>`;
 }
 
 function filt() {
   const form = $('#ff');
   if (!form) return;
-  F = { q: form.q.value, cat: form.cat.value, size: form.size.value, max: Number(form.max.value) || '', av: form.av.checked };
+  F = { q: form.q.value, gender: form.gender.value, cat: form.cat.value, size: form.size.value, max: Number(form.max.value) || '', av: form.av.checked };
   renderProductList();
 }
 
@@ -367,7 +371,7 @@ function bindAdminLogin(){
 async function signOut(){adminPassword='';session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');}
 
 function adminShell(section, content) {
-  const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0], ['ajustes', 'Ajustes', 0]];
+  const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
   return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
 }
 
@@ -515,19 +519,15 @@ async function deletePromo(id) {
   catch (error) { toast(error.message || 'No se pudo eliminar la promoción.'); }
 }
 
-function settings() {
-  return `<div class="acts"><button class="btn s" onclick="resetDemo()">Restablecer datos de ejemplo</button></div><p class="mu">Los productos, promociones y pedidos se gestionan desde Supabase.</p>`;
-}
-
 function blankProduct() {
-  return { id: 'p' + Date.now(), name: '', brand: '', cat: '', price: '', old: '', desc: '', photos: [], sizes: { S: 0, M: 0, L: 0 }, stock: 0, status: 'draft', isDemo: false, det: {} };
+  return { id: 'p' + Date.now(), name: '', brand: '', gender: 'general', cat: '', price: '', old: '', desc: '', photos: [], sizes: { S: 0, M: 0, L: 0 }, stock: 0, status: 'draft', isDemo: false, det: {} };
 }
 
 function editor(id) {
   ed = id === 'nuevo' ? blankProduct() : structuredClone(S.p.find((product) => product.id === id) || blankProduct());
   dirty = false;
   return `<h2>${id === 'nuevo' ? 'Nuevo producto' : 'Editar producto'}</h2><section class="f"><h3>Fotos</h3><div id="ph"></div></section>
-    <section class="f"><h3>Nombre, marca y categoría</h3><label>Nombre<input data-f="name" required></label><label>Marca (opcional)<input data-f="brand"></label><label>Categoría<input data-f="cat" list="cl"></label><datalist id="cl">${[...new Set(S.p.map((product) => product.cat).filter(Boolean))].map((category) => `<option value="${esc(category)}">`).join('')}</datalist></section>
+    <section class="f"><h3>Nombre, sección y categoría</h3><label>Nombre<input data-f="name" required></label><label>Marca (opcional)<input data-f="brand"></label><div class="row"><label>Sección<select data-f="gender"><option value="general">General</option><option value="hombre">Hombre</option><option value="mujer">Mujer</option></select></label><label>Categoría<select data-f="cat"><option value="">Selecciona una categoría</option>${CATEGORIES.map((category) => `<option value="${esc(category)}">${esc(category)}</option>`).join('')}</select></label></div></section>
     <section class="f"><h3>Precio y precio anterior</h3><div class="row"><label>Precio (MXN)<input data-f="price" type="number" min="0"></label><label>Precio anterior (opcional)<input data-f="old" type="number" min="0"></label></div></section>
     <section class="f"><h3>Tallas y stock</h3><div id="sz"></div></section><section class="f"><h3>Descripción</h3><textarea data-f="desc" rows="3" style="width:100%"></textarea></section>
     <details class="f"><summary>Detalles opcionales</summary><label>Color<input data-d="color"></label><label>Material<input data-d="material"></label><label>Corte o ajuste<input data-d="fit"></label><label>Condición<input data-d="cond"></label></details>
@@ -686,7 +686,6 @@ function loginOrAdminContent(section, route) {
   else if (section === 'promociones') content = promotions();
   else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
   else if (section === 'inventario') content = inventory();
-  else if (section === 'ajustes') content = settings();
   else content = '<p>Página no encontrada.</p>';
   return { html: adminShell(section === 'pedido' ? 'pedidos' : section === 'producto' ? 'productos' : section, content), after };
 }

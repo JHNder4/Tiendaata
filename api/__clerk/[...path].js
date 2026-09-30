@@ -1,4 +1,4 @@
-const FAPI = 'https://frontend-api.clerk.dev';
+const FAPI = 'https://frontend-api.clerk.services';
 
 module.exports = async (req, res) => {
   const secretKey = process.env.CLERK_SECRET_KEY || '';
@@ -24,11 +24,18 @@ module.exports = async (req, res) => {
     req.on('error', reject);
   });
 
-  const response = await fetch(target, { method:req.method, headers, body, redirect:'manual' });
-  res.statusCode = response.status;
-  response.headers.forEach((value,key) => {
-    if (!['transfer-encoding','connection'].includes(key.toLowerCase())) res.setHeader(key,value);
-  });
-  const buffer = Buffer.from(await response.arrayBuffer());
-  res.end(buffer);
+  try {
+    const response = await fetch(target, { method:req.method, headers, body, redirect:'manual' });
+    res.statusCode = response.status;
+    response.headers.forEach((value,key) => {
+      if (!['transfer-encoding','connection'].includes(key.toLowerCase())) res.setHeader(key,value);
+    });
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.end(buffer);
+  } catch (error) {
+    console.error('Clerk proxy error:', error);
+    res.statusCode = 502;
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ error: 'Clerk proxy unavailable.' }));
+  }
 };

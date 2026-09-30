@@ -223,6 +223,35 @@ html[data-theme="dark"] .tabs,html[data-theme="dark"] .flt,html[data-theme="dark
 .theme-btn:active,.nav-btn:active,.control-btn:active,.departments a:active,.tabs a:active,.chips a:active{transform:scale(.96)}
 .hd nav{align-items:center;flex-wrap:wrap}.minimal-head{display:none}.home-minimal{padding-top:4px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.card{cursor:pointer}.card:active{transform:scale(.985)}.pf-bottom{align-items:center}.pf-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.top-btn{cursor:pointer}
 @media(max-width:700px){.theme-btn,.nav-btn{min-height:38px;padding:7px 10px;font-size:12px}.hd nav{justify-content:flex-end}.pf-bottom{align-items:flex-start}}
+
+/* Apple-like glass storefront */
+:root{--glass-bg:rgba(255,255,255,.58);--glass-border:rgba(255,255,255,.72);--glass-shadow:0 14px 40px rgba(31,38,46,.10);--glass-blur:18px}
+body{background:radial-gradient(circle at 15% 0%,rgba(214,226,255,.65),transparent 34%),radial-gradient(circle at 90% 10%,rgba(255,225,238,.55),transparent 30%),#f5f6f8!important}
+.hd,.f,.tabs,.bar,.flt,.chips a,.departments a,.btn,.nav-btn,.theme-btn{backdrop-filter:blur(var(--glass-blur)) saturate(150%);-webkit-backdrop-filter:blur(var(--glass-blur)) saturate(150%)}
+.hd{background:rgba(255,255,255,.64)!important;border:1px solid var(--glass-border)!important;box-shadow:var(--glass-shadow)}
+.nav-btn,.theme-btn,.control-btn,.chips a{background:rgba(255,255,255,.48)!important;border-color:rgba(255,255,255,.8)!important;box-shadow:0 5px 18px rgba(31,38,46,.07)}
+.nav-btn:hover,.theme-btn:hover,.control-btn:hover,.chips a:hover{background:rgba(255,255,255,.82)!important;color:var(--fg)!important;transform:translateY(-1px)}
+.card{background:rgba(255,255,255,.46)!important;border:1px solid rgba(255,255,255,.78)!important;box-shadow:0 10px 28px rgba(31,38,46,.08);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.card:hover{box-shadow:0 18px 38px rgba(31,38,46,.13);transform:translateY(-3px)}
+.banner-rail{width:min(100%,980px);margin:0 auto 20px;overflow:hidden}
+.banner-track{display:flex;gap:14px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;padding:4px 2px 10px}
+.banner-track::-webkit-scrollbar{display:none}
+.glass-banner{position:relative;flex:0 0 100%;min-height:260px;border:1px solid rgba(255,255,255,.76);border-radius:28px;overflow:hidden;scroll-snap-align:center;background:linear-gradient(135deg,rgba(255,255,255,.68),rgba(255,255,255,.28));box-shadow:0 18px 45px rgba(31,38,46,.12);backdrop-filter:blur(22px) saturate(160%);-webkit-backdrop-filter:blur(22px) saturate(160%)}
+.glass-banner .banner-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.28;filter:saturate(.85)}
+.glass-banner:after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.9),rgba(255,255,255,.42) 55%,rgba(255,255,255,.08));pointer-events:none}
+.banner-copy{position:relative;z-index:1;max-width:560px;padding:38px 42px}
+.banner-copy h2{margin:7px 0;font-size:clamp(28px,5vw,48px);letter-spacing:-.04em}
+.banner-copy p{max-width:480px;color:var(--mu);font-size:15px;margin:0 0 20px}
+.banner-kind{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);font-weight:700}
+.minimal-categories{max-width:980px;margin:0 auto 18px}
+.minimal-categories .chips{justify-content:flex-start;max-width:900px;gap:8px}
+.minimal-categories .control-btn{min-height:36px;padding:7px 12px;font-size:12px;border-radius:999px}
+html[data-theme="dark"] body{background:radial-gradient(circle at 15% 0%,rgba(67,79,120,.34),transparent 34%),radial-gradient(circle at 90% 10%,rgba(104,58,77,.28),transparent 30%),#10120f!important}
+html[data-theme="dark"] .hd,html[data-theme="dark"] .card,html[data-theme="dark"] .glass-banner{background:rgba(35,38,34,.52)!important;border-color:rgba(255,255,255,.12)!important;box-shadow:0 18px 45px rgba(0,0,0,.28)}
+html[data-theme="dark"] .nav-btn,html[data-theme="dark"] .theme-btn,html[data-theme="dark"] .control-btn,html[data-theme="dark"] .chips a{background:rgba(255,255,255,.07)!important;border-color:rgba(255,255,255,.13)!important;color:var(--fg)!important}
+html[data-theme="dark"] .nav-btn:hover,html[data-theme="dark"] .theme-btn:hover,html[data-theme="dark"] .control-btn:hover,html[data-theme="dark"] .chips a:hover{background:rgba(255,255,255,.14)!important}
+html[data-theme="dark"] .glass-banner:after{background:linear-gradient(90deg,rgba(15,17,14,.88),rgba(15,17,14,.46),rgba(15,17,14,.08))}
+@media(max-width:700px){.banner-rail{width:100%}.glass-banner{min-height:230px;border-radius:22px}.banner-copy{padding:28px 24px}.minimal-categories .chips{max-width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:5px}.minimal-categories .control-btn{flex:0 0 auto}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   if (!window.supabase) {

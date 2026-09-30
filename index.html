@@ -293,6 +293,28 @@ section.f{background:#151517;border:1px solid rgba(255,255,255,.09);border-radiu
 .related-info{padding-top:12px}.related-info b{display:block;font-size:14px;font-weight:600;line-height:1.35}.related-info span{display:block;margin-top:4px;color:#a1a1a6;font-size:13px}
 @media(max-width:900px){.related-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:600px){.related-products{margin-top:62px}.related-head{align-items:flex-start}.related-head h2{font-size:27px}.related-head>a{padding-top:20px}.related-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:26px 11px}.related-card>img,.related-card>.ph{border-radius:14px}.related-info{padding-top:9px}.related-info b{font-size:13px}}
+
+/* Modo claro / oscuro — preferencia persistente */
+body.light-mode{background:radial-gradient(ellipse at 50% -12%,#fff 0,#f5f5f7 45%,#e8e8ed 100%);color:#1d1d1f}
+body.light-mode .hd{background:rgba(250,250,252,.78);border-bottom-color:rgba(0,0,0,.10);box-shadow:0 8px 30px -26px rgba(0,0,0,.35)}
+body.light-mode .brand{color:#1d1d1f}body.light-mode .hd nav a{color:#515154}body.light-mode .hd nav a:hover{color:#000}
+body.light-mode .srch,body.light-mode .flt,body.light-mode .tabs,body.light-mode .bar{background:rgba(255,255,255,.78);border-color:rgba(0,0,0,.09);box-shadow:0 10px 30px -28px rgba(0,0,0,.3)}
+body.light-mode input,body.light-mode select,body.light-mode textarea{background:#fff;color:#1d1d1f;border-color:rgba(0,0,0,.14)}
+body.light-mode input::placeholder,body.light-mode textarea::placeholder{color:#8e8e93}body.light-mode label{color:#6e6e73}
+body.light-mode .chips a{background:#fff;color:#1d1d1f;border-color:rgba(0,0,0,.10)}body.light-mode .chips a:hover{background:#f5f5f7}
+body.light-mode .card{color:#1d1d1f}body.light-mode .card img,body.light-mode .card .ph,body.light-mode .track,body.light-mode .thm,body.light-mode .ci img{background:#f2f2f7;border-color:rgba(0,0,0,.07)}
+body.light-mode .card em,body.light-mode .gb,body.light-mode .cnt{background:rgba(255,255,255,.82);color:#1d1d1f;border-color:rgba(0,0,0,.10)}body.light-mode .old,body.light-mode .mu{color:#6e6e73}
+body.light-mode .sz{background:#fff;color:#1d1d1f;border-color:rgba(0,0,0,.14)}body.light-mode .sz.on{background:#1d1d1f;color:#fff;border-color:#1d1d1f}
+body.light-mode .tabs a{color:#6e6e73}body.light-mode .tabs a.on{background:#e5e5ea;color:#1d1d1f}
+body.light-mode section.f{background:rgba(255,255,255,.82);border-color:rgba(0,0,0,.09)}body.light-mode .tn{background:#fff;border-color:rgba(0,0,0,.09)}body.light-mode .tn .ac button{background:#f2f2f7;color:#1d1d1f;border-color:rgba(0,0,0,.10)}
+body.light-mode .pf{border-color:rgba(0,0,0,.10)}body.light-mode .pf a{color:#6e6e73}body.light-mode .copyright{color:#8e8e93}body.light-mode .copyright strong{color:#515154}
+body.light-mode .promo-banner>div{background:linear-gradient(135deg,rgba(255,255,255,.95),rgba(245,245,247,.85));border-color:rgba(0,0,0,.08);box-shadow:0 18px 45px -34px rgba(0,0,0,.3)}body.light-mode .promo-banner p{color:#6e6e73}body.light-mode .promo-banner span,body.light-mode .promo-badge,body.light-mode .tag{background:#e5e5ea;color:#1d1d1f}
+body.light-mode .related-card{color:#1d1d1f}body.light-mode .related-card>img,body.light-mode .related-card>.ph{background:#f2f2f7;border-color:rgba(0,0,0,.07)}body.light-mode .related-info span,body.light-mode .related-head span,body.light-mode .related-head>a{color:#6e6e73}body.light-mode .related-head>a:hover{color:#1d1d1f}
+body.light-mode .note{background:#fff8e1;border-color:#ecd58a;color:#5f4b18}body.light-mode .modal{background:rgba(0,0,0,.45)}body.light-mode .phone{background:#fff;border-color:#d2d2d7}
+.theme-toggle{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;margin-left:7px;padding:0;border:1px solid rgba(255,255,255,.12);border-radius:50%;background:#2c2c2e;color:#f5f5f7;cursor:pointer;font-size:16px;line-height:1;transition:transform .16s ease,background .16s ease}
+.theme-toggle:hover{background:#3a3a3c}.theme-toggle:active{transform:scale(.94)}
+body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,0,0,.12)}body.light-mode .theme-toggle:hover{background:#f2f2f7}
+@media(max-width:600px){.theme-toggle{width:36px;height:36px;margin-left:3px;font-size:15px}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
 <div class="wrap" id="app"></div>
 <script src="/app.js" defer></script><script defer>
@@ -304,6 +326,85 @@ section.f{background:#151517;border:1px solid rgba(255,255,255,.09);border-radiu
 
   const esc=(v)=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
   const money=(v)=>'
+  const img=(src,name)=>{
+    const url=String(src||'');
+    return /^https:\/\//i.test(url)
+      ? '<img src="'+esc(url)+'" alt="'+esc(name)+'" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'ph\',textContent:\'Sin foto\'}))">'
+      : '<div class="ph">Sin foto</div>';
+  };
+
+  async function products(){
+    if(cache) return cache;
+    if(loading) return [];
+    loading=true;
+    try{
+      const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false}});
+      const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:false});
+      if(error) throw error;
+      cache=(data||[]).filter(r=>r.data&&typeof r.data==='object'&&r.data.status==='published').map(r=>({...r.data,id:r.id}));
+      return cache;
+    }catch(e){console.warn('No se pudieron cargar productos relacionados:',e);return []}
+    finally{loading=false}
+  }
+
+  function card(p){
+    return '<a class="related-card" href="#/producto/'+encodeURIComponent(p.id)+'">'+img((p.photos||[])[0],p.name||'Producto')+
+      '<div class="related-info"><b>'+esc(p.name||'Producto')+'</b><span>'+money(p.price)+'</span></div></a>';
+  }
+
+  async function mount(){
+    if(!location.hash.startsWith('#/producto/')) return;
+    const host=document.querySelector('.pd');
+    if(!host||host.querySelector('.related-products')) return;
+    const id=decodeURIComponent(location.hash.slice('#/producto/'.length).split('?')[0]);
+    const list=await products();
+    const current=list.find(p=>p.id===id);
+    if(!current) return;
+
+    const others=list.filter(p=>p.id!==id);
+    const scored=others.map(p=>{
+      let score=0;
+      if(current.cat&&p.cat===current.cat) score+=5;
+      if(current.brand&&p.brand&&p.brand===current.brand) score+=4;
+      if(current.sizes&&p.sizes) score+=1;
+      if(Number(p.stock||0)>0 || Object.values(p.sizes||{}).some(n=>Number(n)>0)) score+=1;
+      return {p,score};
+    }).sort((a,b)=>b.score-a.score||String(a.p.name).localeCompare(String(b.p.name))).slice(0,8).map(x=>x.p);
+
+    if(!scored.length) return;
+    const section=document.createElement('section');
+    section.className='related-products';
+    const title=current.cat ? 'También te puede gustar' : 'Más productos';
+    section.innerHTML='<div class="related-head"><div><span>TIENDA ATA</span><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
+    host.insertAdjacentElement('afterend',section);
+  }
+
+  const observer=new MutationObserver(()=>{if(location.hash.startsWith('#/producto/')) setTimeout(mount,40)});
+  observer.observe(document.getElementById('app'),{childList:true,subtree:true});
+  window.addEventListener('hashchange',()=>setTimeout(mount,80));
+  setTimeout(mount,500);
+})();
+</script><script defer>
+(function(){
+  const key='tiendaAtaTheme';
+  const saved=localStorage.getItem(key);
+  if(saved==='light') document.body.classList.add('light-mode');
+  function addToggle(){
+    const nav=document.querySelector('.hd nav');
+    if(!nav||nav.querySelector('.theme-toggle')) return;
+    const b=document.createElement('button');
+    b.className='theme-toggle';
+    b.type='button';
+    b.setAttribute('aria-label','Cambiar modo de color');
+    b.title='Cambiar modo claro/oscuro';
+    const sync=()=>{const light=document.body.classList.contains('light-mode');b.textContent=light?'☾':'☀';b.title=light?'Cambiar a modo oscuro':'Cambiar a modo claro';};
+    b.onclick=()=>{document.body.classList.toggle('light-mode');localStorage.setItem(key,document.body.classList.contains('light-mode')?'light':'dark');sync();};
+    nav.appendChild(b);sync();
+  }
+  new MutationObserver(addToggle).observe(document.getElementById('app'),{childList:true,subtree:true});
+  setTimeout(addToggle,80);
+})();
+</script></body></html>
 +Number(v||0).toLocaleString('es-MX')+' MXN';
   const img=(src,name)=>{
     const url=String(src||'');

@@ -222,6 +222,15 @@ function shell(content) {
     </nav>
   </header>
   <main class="store-main">${content}</main>
+  <button class="ata-chat-fab" id="ata-chat-fab" type="button" aria-label="Abrir asistente de Tienda Ata">✦</button>
+  <aside class="ata-chat" id="ata-chat" aria-label="Asistente de Tienda Ata" hidden>
+    <div class="ata-chat-head"><div><strong>Asistente Ata</strong><span>Especialista en la tienda</span></div><button class="ata-chat-close" id="ata-chat-close" type="button" aria-label="Cerrar">×</button></div>
+    <div class="ata-chat-messages" id="ata-chat-messages"></div>
+    <form class="ata-chat-form" id="ata-chat-form">
+      <input id="ata-chat-input" autocomplete="off" maxlength="500" placeholder="¿Qué estás buscando?" aria-label="Mensaje">
+      <button class="btn" type="submit">Enviar</button>
+    </form>
+  </aside>
   <footer class="pf">
     <div class="pf-bottom"><span>© ${new Date().getFullYear()}</span><div class="pf-nav"><a class="nav-btn" href="#/admin">Administración</a><button class="top-btn btn s sm" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">↑</button></div></div>
   </footer>`;
@@ -912,6 +921,45 @@ function loginOrAdminContent(section, route) {
   return { html: adminShell(section === 'pedido' ? 'pedidos' : section === 'producto' ? 'productos' : section, content), after };
 }
 
+const CHAT_KEY='tienda-ata-chat-v1';
+function chatCatalogContext(){
+  const products=publishedProducts().slice(0,80).map(p=>({id:p.id,name:p.name,category:p.cat,gender:p.gender||'general',price:effectivePrice(p),stock:totalStock(p),sizes:p.sizes?Object.keys(p.sizes):[],description:p.desc||''}));
+  const promos=activePromotions().map(p=>({title:p.title,description:p.description||p.subtitle||'',discount_type:p.discount_type,discount_value:p.discount_value,target:p.target,scope:p.scope}));
+  return {products,promos};
+}
+function chatHistory(){
+  try{const h=JSON.parse(localStorage.getItem(CHAT_KEY)||'[]');return Array.isArray(h)?h.slice(-12):[];}catch(_){return []}
+}
+function saveChatHistory(h){try{localStorage.setItem(CHAT_KEY,JSON.stringify(h.slice(-12)));}catch(_){}}
+function chatMessage(text,role){
+  const box=$('#ata-chat-messages'); if(!box)return;
+  const item=document.createElement('div'); item.className='ata-msg '+role; item.textContent=text; box.append(item); box.scrollTop=box.scrollHeight;
+}
+function bindChat(){
+  const fab=$('#ata-chat-fab'), panel=$('#ata-chat'), close=$('#ata-chat-close'), form=$('#ata-chat-form'), input=$('#ata-chat-input');
+  if(!fab||!panel||!form||!input||fab.dataset.bound)return;
+  fab.dataset.bound='1';
+  const history=chatHistory();
+  history.forEach(m=>chatMessage(m.content,m.role==='user'?'user':'bot'));
+  if(!history.length)chatMessage('Hola 👋 Soy el asistente de Tienda Ata. Puedo ayudarte a encontrar productos, revisar precios, tallas, disponibilidad, ofertas y explicarte cómo comprar.','bot');
+  const toggle=(open)=>{panel.hidden=!open;if(open){input.focus();const box=$('#ata-chat-messages');if(box)box.scrollTop=box.scrollHeight;}};
+  fab.onclick=()=>toggle(true); close.onclick=()=>toggle(false);
+  form.onsubmit=async(e)=>{
+    e.preventDefault(); const text=input.value.trim(); if(!text)return;
+    input.value=''; chatMessage(text,'user');
+    const historyNow=[...chatHistory(),{role:'user',content:text}]; saveChatHistory(historyNow);
+    const send=form.querySelector('button[type="submit"]'); send.disabled=true; input.disabled=true;
+    const thinking=document.createElement('div'); thinking.className='ata-msg bot'; thinking.textContent='Estoy revisando la tienda…'; $('#ata-chat-messages')?.append(thinking);
+    try{
+      const response=await fetch(SB_URL+'/functions/v1/tienda-assistant',{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_PUBLISHABLE_KEY},body:JSON.stringify({messages:historyNow,catalog:chatCatalogContext()})});
+      const data=await response.json(); if(!response.ok)throw new Error(data.error||'No pude responder ahora.');
+      thinking.remove(); chatMessage(data.reply||'No encontré una respuesta para eso.','bot');
+      saveChatHistory([...historyNow,{role:'assistant',content:data.reply||''}]);
+    }catch(error){thinking.remove();chatMessage('No pude conectar con el asistente. Intenta de nuevo en unos segundos.','bot');console.error('Tienda Assistant:',error);}
+    finally{send.disabled=false;input.disabled=false;input.focus();}
+  };
+}
+
 function render() {
   const app = $('#app');
   if (!ready) { app.innerHTML = '<p class="mu">Conectando con la tienda…</p>'; return; }
@@ -924,7 +972,7 @@ function render() {
     const section = route[1] || 'dashboard';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
-    applyTheme(); bindThemeToggle();
+    applyTheme(); bindThemeToggle(); bindChat();
     if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
     else { result.after?.(); if (section === 'promociones') bindPromotions(); if (section === 'banners') bindBanners(); }
     $('#logout-button')?.addEventListener('click', () => { void signOut(); });
@@ -942,7 +990,7 @@ function render() {
   else if (route[0] === 'confirmacion') content = done(route[1]);
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
-  applyTheme(); bindThemeToggle();
+  applyTheme(); bindThemeToggle(); bindChat();
   if (route[0] === 'catalogo') renderProductList();
   if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
   after?.();

@@ -6,11 +6,9 @@ Tienda en línea estática en español, desplegada desde GitHub en Vercel, con S
 
 - **Tienda pública:** HTML/CSS/JavaScript sin proceso de build.
 - **Supabase:** productos, pedidos, promociones e imágenes.
-- **Clerk:** inicio de sesión del administrador.
-- **Vercel:** hosting, API de configuración de Clerk y proxy `/__clerk`.
-- **Administrador autorizado:** la cuenta Clerk con ID `user_3K2Cx9Aqax6SzuYy6LO1TvIGxfk`.
+- **Vercel:** hosting y despliegue de la tienda.
 
-La autorización administrativa se comprueba en la Edge Function `admin-panel`. El navegador nunca recibe `CLERK_SECRET_KEY`.
+El panel de administración usa un código de acceso validado en una Edge Function de Supabase. El código no se guarda en el repositorio.
 
 ## Variables necesarias
 
@@ -27,8 +25,6 @@ La ruta `/api/clerk-config` expone únicamente la clave publicable.
 
 En los secretos de la función `admin-panel`:
 
-- `CLERK_SECRET_KEY`
-- `CLERK_PUBLISHABLE_KEY`
 
 `CLERK_ADMIN_USER_ID` es opcional porque la función ya tiene como respaldo el ID del administrador autorizado. Si se define, ese valor tiene prioridad.
 

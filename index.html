@@ -930,6 +930,76 @@ html[data-theme="dark"] .banner-preview-media{
   .banner-saved-row{align-items:flex-start}
 }
 
+
+/* Tienda Ata — rendimiento: conserva el aspecto glass sin filtros SVG pesados */
+body{animation:none!important;background-size:100% 100%!important}
+body::before{display:none!important}
+.hd,.srch,.flt,.tabs,.bar,.glass-banner,.related-products,.ata-chat,.f,.card,.btn,.nav-btn,.theme-btn,.control-btn,.chips a,.departments a,.tn{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+}
+.liquid-glass-surface{
+  backdrop-filter:none!important;
+  -webkit-backdrop-filter:none!important;
+  transform:none!important;
+  transition:box-shadow .18s ease,border-color .18s ease,background .18s ease!important;
+}
+.liquid-glass-surface:hover{transform:none!important}
+.card:hover{transform:translateY(-2px)!important}
+.glass-banner{box-shadow:0 14px 34px rgba(31,38,46,.10)!important}
+
+/* Banners predeterminados */
+.glass-banner.banner-preset-1{
+  background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(208,226,255,.72) 46%,rgba(235,211,255,.76))!important;
+}
+.glass-banner.banner-preset-2{
+  background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(214,241,229,.72) 48%,rgba(222,230,255,.76))!important;
+}
+.glass-banner.banner-preset-3{
+  background:linear-gradient(135deg,rgba(255,255,255,.86),rgba(255,227,214,.72) 48%,rgba(255,217,231,.76))!important;
+}
+.glass-banner .banner-light-orb{
+  position:absolute;right:5%;top:-22%;width:300px;height:300px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.84) 0,rgba(255,255,255,.22) 42%,transparent 70%);
+  pointer-events:none;
+}
+.glass-banner::after{
+  background:linear-gradient(90deg,rgba(255,255,255,.62),rgba(255,255,255,.14) 58%,rgba(255,255,255,.02))!important;
+}
+.banner-editor-item{
+  display:grid;grid-template-columns:minmax(280px,42%) minmax(0,1fr);gap:18px;
+  padding:16px 0;border-bottom:1px solid var(--ln);
+}
+.banner-editor-item:last-child{border-bottom:0}
+.banner-editor-preview{min-width:0}
+.banner-preview-card{
+  position:relative;min-height:210px;overflow:hidden;border-radius:22px;padding:26px;
+  border:1px solid rgba(255,255,255,.76);
+  box-shadow:0 12px 30px rgba(31,38,46,.08),inset 0 1px 0 rgba(255,255,255,.82);
+}
+.banner-preview-card.banner-preset-1{background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(208,226,255,.78) 46%,rgba(235,211,255,.82))}
+.banner-preview-card.banner-preset-2{background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(214,241,229,.78) 48%,rgba(222,230,255,.82))}
+.banner-preview-card.banner-preset-3{background:linear-gradient(135deg,rgba(255,255,255,.90),rgba(255,227,214,.78) 48%,rgba(255,217,231,.82))}
+.banner-preview-card .banner-preview-orb{position:absolute;right:-20px;top:-55px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(255,255,255,.8),rgba(255,255,255,.12) 60%,transparent 72%)}
+.banner-preview-copy{position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start;gap:8px;max-width:90%}
+.banner-preview-copy .banner-kind{font-size:10px}
+.banner-preview-copy strong{font-size:30px;line-height:1.02;letter-spacing:-.04em}
+.banner-preview-copy>span:not(.banner-kind){font-size:13px;line-height:1.35;color:var(--mu);max-width:360px}
+.banner-preview-copy>b{margin-top:6px;padding:8px 13px;border-radius:999px;background:rgba(255,255,255,.62);border:1px solid rgba(255,255,255,.82);font-size:11px}
+.banner-editor-fields{min-width:0;display:flex;flex-direction:column;gap:10px}
+.banner-editor-title{display:flex;flex-direction:column;gap:2px;margin-bottom:2px}
+.banner-editor-title strong{font-size:18px}
+.banner-editor-fields label{margin:0}
+.banner-editor-fields .row{gap:10px}
+.banner-help{margin-top:14px}
+@media(max-width:850px){.banner-editor-item{grid-template-columns:1fr}.banner-preview-card{min-height:185px}}
+html[data-theme="dark"] .glass-banner.banner-preset-1{background:linear-gradient(135deg,rgba(61,77,111,.82),rgba(71,59,99,.74))!important}
+html[data-theme="dark"] .glass-banner.banner-preset-2{background:linear-gradient(135deg,rgba(52,88,76,.82),rgba(57,69,108,.74))!important}
+html[data-theme="dark"] .glass-banner.banner-preset-3{background:linear-gradient(135deg,rgba(97,64,58,.82),rgba(91,57,76,.74))!important}
+html[data-theme="dark"] .banner-preview-card.banner-preset-1{background:linear-gradient(135deg,rgba(61,77,111,.82),rgba(71,59,99,.74))}
+html[data-theme="dark"] .banner-preview-card.banner-preset-2{background:linear-gradient(135deg,rgba(52,88,76,.82),rgba(57,69,108,.74))}
+html[data-theme="dark"] .banner-preview-card.banner-preset-3{background:linear-gradient(135deg,rgba(97,64,58,.82),rgba(91,57,76,.74))}
+html[data-theme="dark"] .banner-preview-copy>b{background:rgba(255,255,255,.10);border-color:rgba(255,255,255,.16)}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   if (!window.supabase) {
@@ -938,7 +1008,7 @@ html[data-theme="dark"] .banner-preview-media{
 </script></head><body>
 <div class="wrap" id="app"></div>
 
-<script src="/app.js" defer></script><script src="/liquid-glass-engine.js" defer></script><script defer>
+<script src="/app.js" defer></script><script defer>
 /* Tienda Ata — productos relacionados en detalle */
 (function(){
   const SUPABASE_URL='https://svvylvtmmynxkmdowymx.supabase.co';

@@ -206,6 +206,23 @@ html,body{background:#f7f6f1!important;color:#252720!important}body{min-height:1
 
 /* Tienda Ata — storefront minimal */
 .store-main{max-width:1160px;margin:0 auto}.home-clean{padding:8px 0 28px}.home-top{display:flex;align-items:center;justify-content:space-between;margin:4px 0 22px}.home-top .eyebrow{font-size:12px;letter-spacing:.16em;font-weight:700}.home-link{font-size:13px;text-decoration:none;color:var(--mu)}.home-link:hover{color:var(--fg)}.home-products{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,205px),1fr));gap:22px 18px}.compact-section{margin-top:4px}.compact-section .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:13px}.compact-section .section-head h2{margin:0}.section-head a{font-size:13px;color:var(--mu);text-decoration:none}.section-head a:hover{text-decoration:underline}.pf{margin-top:50px;padding:18px 0}.pf-bottom{display:flex;justify-content:space-between;align-items:center;gap:16px;text-align:left}.pf-nav{display:flex;gap:18px;flex-wrap:wrap}.pf-nav a{font-size:12px}@media(max-width:700px){.home-clean{padding-top:2px}.home-products{grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 12px}.pf-bottom{align-items:flex-start;flex-direction:column;gap:10px}.pf-nav{gap:12px}}
+
+/* Tema claro/oscuro y controles táctiles */
+:root{color-scheme:light}
+html[data-theme="dark"]{color-scheme:dark;--fg:#f3f3ef;--mu:#a8aaa3;--ln:rgba(255,255,255,.13);--sf:#20221f;--rd:#d87568;--olive:#9aaa89;--glass:rgba(28,30,27,.88);--glass-strong:rgba(38,41,37,.96);--glass-brd:rgba(255,255,255,.14);--glass-hi:rgba(255,255,255,.07);--glass-dark:rgba(10,11,10,.92)}
+html[data-theme="dark"],html[data-theme="dark"] body{background:#151714!important;color:var(--fg)!important}
+html[data-theme="dark"] .hd{background:rgba(24,26,23,.94)!important;color:var(--fg)!important;border-color:var(--glass-brd)}
+html[data-theme="dark"] .hd nav a,html[data-theme="dark"] .brand{color:var(--fg)!important}
+html[data-theme="dark"] .card img,html[data-theme="dark"] .card .ph,html[data-theme="dark"] .ci img,html[data-theme="dark"] .track{background:#20221f!important}
+html[data-theme="dark"] input,html[data-theme="dark"] select,html[data-theme="dark"] textarea{background:#20221f;color:var(--fg);border-color:var(--glass-brd)}
+html[data-theme="dark"] section.f,html[data-theme="dark"] .tn{background:#1c1e1b;color:var(--fg);border-color:var(--glass-brd)}
+html[data-theme="dark"] .btn.s,html[data-theme="dark"] .chips a,html[data-theme="dark"] .gb,html[data-theme="dark"] .cnt,html[data-theme="dark"] .card em{background:#262925;color:var(--fg);border-color:var(--glass-brd)}
+html[data-theme="dark"] .tabs,html[data-theme="dark"] .flt,html[data-theme="dark"] .bar{background:rgba(28,30,27,.9)!important}
+.theme-btn,.nav-btn,.control-btn,.departments a,.tabs a,.chips a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 13px;border:1px solid var(--glass-brd);border-radius:11px;background:var(--glass-strong);color:var(--fg);text-decoration:none;cursor:pointer;font-weight:600;transition:transform .14s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease}
+.theme-btn:hover,.nav-btn:hover,.control-btn:hover,.departments a:hover,.tabs a:hover,.chips a:hover{background:var(--fg);color:#fff;border-color:var(--fg);box-shadow:0 6px 16px -12px rgba(0,0,0,.55)}
+.theme-btn:active,.nav-btn:active,.control-btn:active,.departments a:active,.tabs a:active,.chips a:active{transform:scale(.96)}
+.hd nav{align-items:center;flex-wrap:wrap}.minimal-head{display:none}.home-minimal{padding-top:4px}.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.card{cursor:pointer}.card:active{transform:scale(.985)}.pf-bottom{align-items:center}.pf-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.top-btn{cursor:pointer}
+@media(max-width:700px){.theme-btn,.nav-btn{min-height:38px;padding:7px 10px;font-size:12px}.hd nav{justify-content:flex-end}.pf-bottom{align-items:flex-start}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
   if (!window.supabase) {
@@ -266,7 +283,7 @@ html,body{background:#f7f6f1!important;color:#252720!important}body{min-height:1
     const section=document.createElement('section');
     section.className='related-products';
     const title=current.cat ? 'También te puede gustar' : 'Más productos';
-    section.innerHTML='<div class="related-head"><div><span>TIENDA ATA</span><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
+    section.innerHTML='<div class="related-head"><div><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
     host.insertAdjacentElement('afterend',section);
   }
   const observer=new MutationObserver(()=>{if(location.hash.startsWith('#/producto/')) setTimeout(mount,40)});

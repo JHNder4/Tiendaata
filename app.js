@@ -233,7 +233,7 @@ function shell(content) {
     </form>
   </aside>
   <footer class="pf">
-    <div class="pf-bottom"><span>© ${new Date().getFullYear()}</span><div class="pf-nav"><a class="nav-btn" href="#/admin">Administración</a><button class="top-btn btn s sm" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">↑</button></div></div>
+    <div class="pf-bottom"><span>JHNder 2026</span><div class="pf-nav"><a class="nav-btn" href="#/admin">Administración</a><button class="top-btn btn s sm" type="button" onclick="scrollTo({top:0,behavior:'smooth'})">↑</button></div></div>
   </footer>`;
 }
 
@@ -569,7 +569,7 @@ function bindBanners() {
 }
 function adminShell(section, content) {
   const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['banners', 'Banners', S.banners.filter((banner) => banner.active).length], ['inventario', 'Inventario', 0]];
-  return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
+  return `<div class="admin-shell"><div class="ahd"><div><span class="admin-eyebrow">TIENDA ATA</span><h1>Panel de administración</h1></div><div class="row admin-actions"><a class="nav-btn" href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}</div>`;
 }
 
 function orders(query = '') {

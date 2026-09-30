@@ -944,16 +944,22 @@ client.auth.onAuthStateChange((event, session) => {
 });
 
 async function init(){
-  try{
+  const app = $('#app');
+  ready = true;
+  currentRoute = location.hash;
+  // Pintar la interfaz inmediatamente. La tienda no debe quedarse en blanco si Supabase tarda o falla.
+  render();
+  try {
     await loadProducts();
-    await loadPromotions();
-    ready=true;
-    currentRoute=location.hash;
-    render();
-    if(location.hash.startsWith('#/admin')) void verifyAdminSession();
-  }catch(error){
-    console.error('No se pudo iniciar la tienda:',error);
-    $('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';
+  } catch(error) {
+    console.error('No se pudieron cargar los productos:', error);
   }
+  try {
+    await loadPromotions();
+  } catch(error) {
+    console.error('No se pudieron cargar las promociones:', error);
+  }
+  render();
+  if(location.hash.startsWith('#/admin')) void verifyAdminSession();
 }
 void init();

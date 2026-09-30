@@ -44,7 +44,6 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
 let S = { p: [], o: [], c: [], promos: [] };
 let isAdmin = false;
 let authChecking = false;
-const ADMIN_CODE_KEY = 'tiendaAtaAdminCode';
 let ready = false;
 let dirty = false;
 let currentRoute = location.hash;
@@ -133,35 +132,64 @@ const cartTotal = () => cartRows().reduce((sum, { item, product }) => sum + item
 const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
 const go = (hash) => { location.hash = hash; };
 
-async function adminRequest(action, extra = {}) {
-  const code = localStorage.getItem(ADMIN_CODE_KEY) || '';
-  if (!code) throw new Error('Introduce el código de administrador.');
-  const response = await fetch(SB_URL + '/functions/v1/admin-panel',{
-    method:'POST',
-    headers:{'Content-Type':'application/json','x-admin-code':code},
-    body:JSON.stringify({action,...extra})
-  });
-  const result = await response.json().catch(()=>({}));
-  if(!response.ok||result.error)throw new Error(result.error||'No se pudo completar la operación.');
-  return result;
+async function currentUser() {
+  const { data, error } = await client.auth.getUser();
+  if (error) throw error;
+  return data.user || null;
 }
+
+async function requireAuthenticatedUser() {
+  const user = await currentUser();
+  if (!user) throw new Error('Inicia sesión para administrar Tienda Ata.');
+  return user;
+}
+
 async function loadProducts(){
-  if(isAdmin){const result=await adminRequest('products');S.p=(result.data||[]).filter(r=>r.id!=='_seeded'&&r.data&&typeof r.data==='object').map(r=>({...r.data,id:r.id,isDemo:!!r.is_demo||!!r.data.isDemo}));}
-  else{const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:true});if(error)throw error;S.p=(data||[]).filter(r=>r.id!=='_seeded'&&r.data&&typeof r.data==='object').map(r=>({...r.data,id:r.id,isDemo:!!r.is_demo||!!r.data.isDemo}));}
-  Object.keys(snapshot).forEach(id=>delete snapshot[id]);S.p.forEach(product=>{snapshot[product.id]=JSON.stringify(product);});
+  const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:true});
+  if(error)throw error;
+  S.p=(data||[]).filter(r=>r.id!=='_seeded'&&r.data&&typeof r.data==='object').map(r=>({...r.data,id:r.id,isDemo:!!r.is_demo||!!r.data.isDemo}));
+  Object.keys(snapshot).forEach(id=>delete snapshot[id]);
+  S.p.forEach(product=>{snapshot[product.id]=JSON.stringify(product);});
 }
-async function loadOrders(){if(!isAdmin){S.o=[];return;}const result=await adminRequest('orders');S.o=(result.data||[]).map(r=>({...r.data||{},n:r.n}));}
+
+async function loadOrders(){
+  if(!isAdmin){S.o=[];return;}
+  await requireAuthenticatedUser();
+  const {data,error}=await client.from('orders').select('n,data,created_at').order('created_at',{ascending:false});
+  if(error)throw error;
+  S.o=(data||[]).map(r=>({...r.data||{},n:r.n}));
+}
+
 async function loadPromotions(){
-  if(isAdmin){const result=await adminRequest('promotions');S.promos=result.data||[];}
-  else{const {data,error}=await client.from('promotions').select('*').order('priority',{ascending:false}).order('created_at',{ascending:false});if(error)throw error;S.promos=data||[];}
+  const {data,error}=await client.from('promotions').select('*').order('priority',{ascending:false}).order('created_at',{ascending:false});
+  if(error)throw error;
+  S.promos=data||[];
 }
-async function refreshAdminState(){if(!isAdmin){S.o=[];return;}try{await loadOrders();await loadPromotions();}catch(error){console.error('No se pudieron cargar los datos de administración:',error);S.o=[];S.promos=[];}}
+
+async function refreshAdminState(){
+  if(!isAdmin){S.o=[];return;}
+  try{await loadOrders();await loadPromotions();}
+  catch(error){console.error('No se pudieron cargar los datos de administración:',error);S.o=[];S.promos=[];}
+}
 
 async function persistProducts(){
-  const currentIds=new Set(S.p.map(p=>p.id)),changed=S.p.filter(p=>snapshot[p.id]!==JSON.stringify(p)),deleted=Object.keys(snapshot).filter(id=>!currentIds.has(id));
-  if(!changed.length&&!deleted.length)return true;if(!isAdmin){toast('Inicia sesión como administrador para guardar cambios.');return false;}
-  if(changed.length){await adminRequest('upsert_products',{rows:changed.map(rowForProduct)});changed.forEach(p=>{snapshot[p.id]=JSON.stringify(p);});}
-  if(deleted.length){await adminRequest('delete_products',{ids:deleted});deleted.forEach(id=>delete snapshot[id]);}return true;
+  if(!isAdmin)return false;
+  await requireAuthenticatedUser();
+  const currentIds=new Set(S.p.map(p=>p.id));
+  const changed=S.p.filter(p=>snapshot[p.id]!==JSON.stringify(p));
+  const deleted=Object.keys(snapshot).filter(id=>!currentIds.has(id));
+  if(!changed.length&&!deleted.length)return true;
+  if(changed.length){
+    const {error}=await client.from('products').upsert(changed.map(rowForProduct),{onConflict:'id'});
+    if(error)throw error;
+    changed.forEach(p=>{snapshot[p.id]=JSON.stringify(p);});
+  }
+  if(deleted.length){
+    const {error}=await client.from('products').delete().in('id',deleted);
+    if(error)throw error;
+    deleted.forEach(id=>delete snapshot[id]);
+  }
+  return true;
 }
 async function save() {
   try { localStorage.setItem(CART_KEY, JSON.stringify(S.c)); } catch (_) { /* private browsing may block local storage */ }
@@ -369,51 +397,74 @@ function done(orderNumber) {
 }
 
 function adminLogin(){
-  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Introduce el código para entrar al panel.</p><form id="admin-login-form"><label>Código de acceso<input id="admin-code" type="password" autocomplete="current-password" required placeholder="Código de administrador"></label><button class="btn" type="submit">Entrar al panel</button><p id="login-error" class="mu" role="alert"></p></form></section>`;
+  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta de Supabase.</p><form id="admin-login-form"><label>Correo<input id="admin-email" type="email" autocomplete="email" required placeholder="tu@correo.com"></label><label>Contraseña<input id="admin-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Tu contraseña"></label><div class="acts"><button class="btn" type="submit" id="login-submit">Entrar al panel</button><button class="btn s" type="button" id="signup-submit">Crear cuenta</button></div><p id="login-error" class="mu" role="alert"></p></form></section>`;
 }
 function bindAdminLogin(){
   const form=$('#admin-login-form');
-  if(!form || form.dataset.bound) return;
+  if(!form || form.dataset.bound)return;
   form.dataset.bound='1';
+  const emailInput=$('#admin-email'), passwordInput=$('#admin-password'), error=$('#login-error');
+  const loginButton=$('#login-submit'), signupButton=$('#signup-submit');
   form.addEventListener('submit',async(event)=>{
     event.preventDefault();
-    const input=$('#admin-code'), error=$('#login-error'), button=form.querySelector('button');
-    const code=input.value.trim();
-    if(!code) return;
-    button.disabled=true; button.textContent='Verificando…'; error.textContent='';
-    localStorage.setItem(ADMIN_CODE_KEY,code);
-    try {
-      const result=await adminRequest('check');
-      if(!result.ok) throw new Error('Código incorrecto.');
+    const email=emailInput.value.trim(),password=passwordInput.value;
+    if(!email||!password)return;
+    loginButton.disabled=true;signupButton.disabled=true;loginButton.textContent='Verificando…';error.textContent='';
+    try{
+      const {data,error:authError}=await client.auth.signInWithPassword({email,password});
+      if(authError)throw authError;
+      if(!data.session)throw new Error('No se pudo iniciar la sesión.');
       isAdmin=true;
-      await loadProducts(); await loadOrders(); await loadPromotions();
-      render();
-      toast('Acceso concedido.');
-    } catch(errorValue) {
-      localStorage.removeItem(ADMIN_CODE_KEY);
+      await loadProducts();await loadOrders();await loadPromotions();
+      render();toast('Sesión iniciada.');
+    }catch(errorValue){
       isAdmin=false;
-      error.textContent=errorValue.message || 'Código incorrecto.';
-      button.disabled=false; button.textContent='Entrar al panel';
+      error.textContent=authErrorMessage(errorValue);
+      loginButton.disabled=false;signupButton.disabled=false;loginButton.textContent='Entrar al panel';
+    }
+  });
+  signupButton.addEventListener('click',async()=>{
+    const email=emailInput.value.trim(),password=passwordInput.value;
+    if(!email)return error.textContent='Escribe tu correo.';
+    if(password.length<6)return error.textContent='La contraseña debe tener al menos 6 caracteres.';
+    loginButton.disabled=true;signupButton.disabled=true;signupButton.textContent='Creando…';error.textContent='';
+    try{
+      const {data,error:authError}=await client.auth.signUp({email,password});
+      if(authError)throw authError;
+      if(data.session){
+        isAdmin=true;await loadProducts();await loadOrders();await loadPromotions();render();toast('Cuenta creada y sesión iniciada.');
+      }else{
+        error.textContent='Cuenta creada. Revisa tu correo para confirmar la cuenta y después inicia sesión.';
+        loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
+      }
+    }catch(errorValue){
+      error.textContent=authErrorMessage(errorValue);
+      loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
     }
   });
 }
-async function verifyAdminSession(){
-  if (authChecking) return;
-  authChecking=true;
-  try {
-    const result=await adminRequest('check');
-    isAdmin=!!result.ok;
-    if (isAdmin) { await loadProducts(); await loadOrders(); await loadPromotions(); }
-  } catch(error) {
-    isAdmin=false;
-    localStorage.removeItem(ADMIN_CODE_KEY);
-  } finally {
-    authChecking=false;
-    render();
-  }
+function authErrorMessage(errorValue){
+  const message=String(errorValue?.message||'No se pudo autenticar.');
+  if(/invalid login credentials/i.test(message))return 'Correo o contraseña incorrectos.';
+  if(/email not confirmed/i.test(message))return 'Confirma tu correo antes de iniciar sesión.';
+  return message;
 }
-function signOut(){
-  localStorage.removeItem(ADMIN_CODE_KEY);
+async function verifyAdminSession(){
+  if(authChecking)return;
+  authChecking=true;
+  render();
+  try{
+    const user=await currentUser();
+    isAdmin=!!user;
+    if(isAdmin){await loadProducts();await loadOrders();await loadPromotions();}
+  }catch(error){
+    console.error('No se pudo verificar la sesión:',error);
+    isAdmin=false;S.o=[];S.promos=[];
+  }finally{authChecking=false;render();}
+}
+async function signOut(){
+  const {error}=await client.auth.signOut();
+  if(error){toast('No se pudo cerrar sesión.');return;}
   isAdmin=false;S.o=[];S.promos=[];render();toast('Sesión cerrada.');
 }
 
@@ -437,7 +488,17 @@ function orderDetail(number) {
     <p><b>Nombre:</b> ${esc(order.name)}<br><b>Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Notas:</b> ${esc(order.notes || '—')}</p>`;
 }
 
-async function setSt(number,status){const order=S.o.find(item=>String(item.n)===String(number));if(!order)return;const old=order.status;order.status=status;const {n,...payload}=order;try{await adminRequest('update_order',{n:number,data:payload});toast('Estado actualizado.');}catch(_){order.status=old;render();toast('No se pudo actualizar el estado del pedido.');}}
+async function setSt(number,status){
+  const order=S.o.find(item=>String(item.n)===String(number));if(!order)return;
+  const old=order.status;order.status=status;const {n,...payload}=order;
+  try{
+    await requireAuthenticatedUser();
+    const {error}=await client.from('orders').update({data:payload}).eq('n',number);
+    if(error)throw error;
+    toast('Estado actualizado.');
+  }catch(_){order.status=old;render();toast('No se pudo actualizar el estado del pedido.');}
+}
+
 function productList(query = '') {
   const text = query.toLowerCase();
   const list = S.p.filter((product) => !text || `${product.name || ''}${product.brand || ''}${product.cat || ''}`.toLowerCase().includes(text));
@@ -551,18 +612,18 @@ function bindPromotions() {
     const row = { id: 'promo_' + Date.now(), title, subtitle: $('#promo-subtitle')?.value.trim() || '', badge: $('#promo-badge')?.value.trim() || 'Oferta', discount_type: $('#promo-type')?.value || 'percent', discount_value: value, scope: currentScope, target, starts_at: $('#promo-start')?.value ? new Date($('#promo-start').value).toISOString() : null, ends_at: $('#promo-end')?.value ? new Date($('#promo-end').value).toISOString() : null, active: $('#promo-active')?.checked !== false, priority: 0 };
     if (row.starts_at && row.ends_at && new Date(row.ends_at) < new Date(row.starts_at)) return toast('La fecha final debe ser posterior a la inicial.');
     const button = $('#promo-save'); if (button) { button.disabled = true; button.textContent = 'Guardando…'; }
-    try { await adminRequest('upsert_promotions', { rows: [row] }); await loadPromotions(); toast('Promoción creada.'); render(); }
+    try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').upsert(row,{onConflict:'id'}); if(error)throw error; await loadPromotions(); toast('Promoción creada.'); render(); }
     catch (error) { toast(error.message || 'No se pudo guardar la promoción.'); if (button) { button.disabled = false; button.textContent = 'Crear promoción'; } }
   });
 }
 async function togglePromo(id) {
   const promo = S.promos.find((item) => item.id === id); if (!promo) return;
-  try { await adminRequest('upsert_promotions', { rows: [{ ...promo, active: !promo.active }] }); await loadPromotions(); render(); }
+  try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').update({active:!promo.active}).eq('id',id); if(error)throw error; await loadPromotions(); render(); }
   catch (error) { toast(error.message || 'No se pudo actualizar la promoción.'); }
 }
 async function deletePromo(id) {
   if (!confirm('¿Eliminar esta promoción?')) return;
-  try { await adminRequest('delete_promotions', { ids: [id] }); await loadPromotions(); render(); toast('Promoción eliminada.'); }
+  try { await requireAuthenticatedUser(); const {error}=await client.from('promotions').delete().eq('id',id); if(error)throw error; await loadPromotions(); render(); toast('Promoción eliminada.'); }
   catch (error) { toast(error.message || 'No se pudo eliminar la promoción.'); }
 }
 
@@ -617,7 +678,18 @@ function resizeImage(file) {
   });
 }
 
-async function uploadPhoto(file){if(!isAdmin)throw new Error('Inicia sesión como administrador para subir fotos.');if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');const blob=await resizeImage(file),name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`,bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));const result=await adminRequest('upload_photo',{name,contentType:'image/jpeg',base64:btoa(binary)});return result.url;}
+async function uploadPhoto(file){
+  if(!isAdmin)throw new Error('Inicia sesión como administrador para subir fotos.');
+  if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');
+  await requireAuthenticatedUser();
+  const blob=await resizeImage(file);
+  const name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`;
+  const {error}=await client.storage.from('fotos').upload(name,blob,{contentType:'image/jpeg',upsert:false});
+  if(error)throw error;
+  const {data}=client.storage.from('fotos').getPublicUrl(name);
+  return data.publicUrl;
+}
+
 async function addPhotos(files, replaceAt = null) {
   const accepted = [...files].filter((file) => file.type.startsWith('image/'));
   if (!accepted.length) return;
@@ -723,9 +795,8 @@ async function saveP(status) {
 }
 
 function loginOrAdminContent(section, route) {
+  if (authChecking) return '<section class="f"><h2>Verificando acceso…</h2><p class="mu">Comprobando tu sesión de Supabase antes de cargar el panel.</p></section>';
   if (!isAdmin) return adminLogin();
-  if (authChecking) return '<section class="f"><h2>Verificando acceso…</h2><p class="mu">Comprobando permisos de administración.</p></section>';
-  if (!isAdmin) return adminDenied();
   let content;
   let after;
   if (section === 'pedidos') content = orders();
@@ -752,6 +823,7 @@ function render() {
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
     if (typeof result === 'string') bindAdminLogin();
     else { result.after?.(); if (section === 'promociones') bindPromotions(); }
+    $('#logout-button')?.addEventListener('click', () => { void signOut(); });
     return;
   }
 
@@ -784,5 +856,29 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-async function init(){try{await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
+client.auth.onAuthStateChange((event, session) => {
+  setTimeout(async () => {
+    const nextIsAdmin=!!session?.user;
+    if(event==='SIGNED_OUT'){isAdmin=false;S.o=[];S.promos=[];}
+    else if(nextIsAdmin && !isAdmin && ready && location.hash.startsWith('#/admin')){
+      isAdmin=true;
+      try{await loadProducts();await loadOrders();await loadPromotions();}catch(error){console.error('No se pudo cargar el panel tras autenticar:',error);isAdmin=false;}
+    }else{isAdmin=nextIsAdmin;}
+    if(ready)render();
+  },0);
+});
+
+async function init(){
+  try{
+    await loadProducts();
+    await loadPromotions();
+    ready=true;
+    currentRoute=location.hash;
+    render();
+    if(location.hash.startsWith('#/admin')) void verifyAdminSession();
+  }catch(error){
+    console.error('No se pudo iniciar la tienda:',error);
+    $('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';
+  }
+}
 void init();

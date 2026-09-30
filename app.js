@@ -1010,6 +1010,7 @@ async function init(){
   } catch(error) {
     console.error('No se pudieron cargar las promociones:', error);
   }
+  try { await loadBanners(); } catch(error) { console.error('No se pudieron cargar los banners:', error); }
   render();
   if(location.hash.startsWith('#/admin')) void verifyAdminSession();
 }

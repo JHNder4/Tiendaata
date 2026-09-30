@@ -286,7 +286,7 @@ function setupBannerAutoplay() {
     window.__ataBannerAutoplayCleanup = null;
   }
 
-  const slides = $('.glass-banner', track); // sales-carousel-fix
+  const slides = [...track.querySelectorAll('.glass-banner')]; // sales-carousel-fix
   if (slides.length < 2) return;
 
   let index = 0;

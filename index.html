@@ -362,9 +362,9 @@ html{background:radial-gradient(900px 420px at 50% -8%,rgba(255,255,255,.10),tra
       script.src='https://cdn.jsdelivr.net/npm/@clerk/clerk-js@6.34.1/dist/clerk.browser.js';
       script.crossOrigin='anonymous';
       script.dataset.clerkPublishableKey=cfg.publishableKey;
-      script.dataset.clerkProxyUrl='https://useradm.duckdns.org/__clerk';
+      script.dataset.clerkProxyUrl='https://tiendaata.vercel.app/__clerk';
       await new Promise((resolve,reject)=>{script.onload=resolve;script.onerror=reject;document.head.appendChild(script);});
-      await window.Clerk.load({proxyUrl:'https://useradm.duckdns.org/__clerk'});
+      await window.Clerk.load({proxyUrl:'https://tiendaata.vercel.app/__clerk'});
       clerkReady=true;
       window.Clerk.addListener?.(({user})=>{session=window.Clerk.session||null;isAdmin=false;if(ready)render();if(location.hash.startsWith('#/admin')&&user)void verifyAdminSession();});
     }catch(error){console.error('Clerk no pudo iniciarse:',error);window.__clerkError=error;}

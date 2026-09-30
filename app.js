@@ -104,7 +104,7 @@ const activePromotions = () => S.promos.filter((promo) => {
   const now = Date.now();
   return (!promo.starts_at || new Date(promo.starts_at).getTime() <= now) &&
     (!promo.ends_at || new Date(promo.ends_at).getTime() >= now);
-};
+});
 const promoForProduct = (product) => {
   const matches = activePromotions().filter((promo) => promo.scope === 'all' || (promo.scope === 'category' && promo.target === product.cat) || (promo.scope === 'product' && promo.target === product.id));
   return matches.reduce((best, promo) => {

@@ -255,7 +255,7 @@ function bindProduct(root, product) {
 function cart() {
   const rows = cartRows();
   if (!rows.length) return '<h1>Carrito</h1><p class="mu">Tu carrito está vacío.</p><a class="btn" href="#/catalogo">Ver catálogo</a>';
-  return `<h1>Carrito</h1>${rows.map(({ item, index, product }) => `<div class="ci">${im((product.photos || [])[0], product.name)}<div><b>${esc(product.name)}</b><div class="mu">${item.size ? `Talla ${esc(item.size)} · ` : ''}${money(product.price)}</div></div><div class="row"><button class="btn s sm" onclick="cq(${index},-1)" aria-label="Menos">−</button>${item.qty}<button class="btn s sm" onclick="cq(${index},1)" aria-label="Más">+</button></div><button class="btn s sm" onclick="cr(${index})">Quitar</button></div>`).join('')}<h2>Total: ${money(cartTotal())}</h2><a class="btn" href="#/pedido">Continuar con el pedido</a>`;
+  return `<h1>Carrito</h1>${rows.map(({ item, index, product }) => `<div class="ci">${im((product.photos || [])[0], product.name)}<div><b>${esc(product.name)}</b><div class="mu">${item.size ? `Talla ${esc(item.size)} · ` : ''}${money(effectivePrice(product))}</div></div><div class="row"><button class="btn s sm" onclick="cq(${index},-1)" aria-label="Menos">−</button>${item.qty}<button class="btn s sm" onclick="cq(${index},1)" aria-label="Más">+</button></div><button class="btn s sm" onclick="cr(${index})">Quitar</button></div>`).join('')}<h2>Total: ${money(cartTotal())}</h2><a class="btn" href="#/pedido">Continuar con el pedido</a>`;
 }
 
 function cq(index, delta) {

@@ -268,6 +268,17 @@ section.f{background:#151517;border:1px solid rgba(255,255,255,.09);border-radiu
 .copyright{padding-top:16px;font-size:11px;letter-spacing:.01em;color:#6e6e73}.copyright strong{color:#a1a1a6;font-weight:600}
 @media(max-width:600px){.pf{margin-top:48px;padding-top:24px}.pf-links{gap:12px}.copyright{font-size:10px}}
 
+
+/* Promotions */
+.promo-banner{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin:0 0 30px}
+.promo-banner>div{padding:22px 24px;border:1px solid rgba(255,255,255,.10);border-radius:22px;background:linear-gradient(135deg,rgba(255,255,255,.08),rgba(255,255,255,.025));box-shadow:0 18px 45px -34px #000}
+.promo-banner span,.promo-badge,.tag{display:inline-flex;align-items:center;width:max-content;padding:4px 9px;border-radius:999px;background:#2c2c2e;color:#f5f5f7;font-size:11px;font-weight:600}
+.promo-banner strong{display:block;margin-top:10px;font-size:22px;letter-spacing:-.03em}
+.promo-banner p{margin:5px 0 0;color:#a1a1a6}
+.promo-badge{margin-left:7px;vertical-align:middle;background:rgba(255,69,58,.14);color:#ff6961;border:1px solid rgba(255,69,58,.20)}
+.promo-row{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:17px 0;border-bottom:1px solid rgba(255,255,255,.08)}
+.promo-row:last-child{border-bottom:0}.promo-row strong{font-size:16px}
+@media(max-width:600px){.promo-banner{grid-template-columns:1fr}.promo-banner>div{padding:18px}.promo-row{align-items:flex-start;flex-direction:column}.promo-row .row{width:100%}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
 <div class="wrap" id="app"></div>
 <script src="/app.js" defer></script></body></html>

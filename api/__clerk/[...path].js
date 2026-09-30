@@ -1,4 +1,5 @@
 const FAPI = 'https://frontend-api.clerk.services';
+const PROXY_URL = 'https://useradm.duckdns.org/__clerk';
 
 module.exports = async (req, res) => {
   const secretKey = process.env.CLERK_SECRET_KEY || '';
@@ -12,7 +13,7 @@ module.exports = async (req, res) => {
     if (Array.isArray(value)) headers.set(key, value.join(', '));
     else if (value != null) headers.set(key, String(value));
   }
-  headers.set('Clerk-Proxy-Url', 'https://tiendaata.vercel.app/__clerk');
+  headers.set('Clerk-Proxy-Url', PROXY_URL);
   headers.set('Clerk-Secret-Key', secretKey);
   const forwarded = req.headers['x-forwarded-for'];
   headers.set('X-Forwarded-For', Array.isArray(forwarded) ? forwarded[0] : (forwarded || req.socket?.remoteAddress || ''));

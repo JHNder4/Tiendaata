@@ -323,16 +323,14 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
   const SUPABASE_URL='https://svvylvtmmynxkmdowymx.supabase.co';
   const SUPABASE_KEY='sb_publishable_RYbyrmTxY4Qv2rKTuxeT6Q_70Juauak';
   let cache=null, loading=false;
-
   const esc=(v)=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[ch]);
-  const money=(v)=>'
+  const money=(v)=>'$'+Number(v||0).toLocaleString('es-MX')+' MXN';
   const img=(src,name)=>{
     const url=String(src||'');
     return /^https:\/\//i.test(url)
       ? '<img src="'+esc(url)+'" alt="'+esc(name)+'" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'ph\',textContent:\'Sin foto\'}))">'
       : '<div class="ph">Sin foto</div>';
   };
-
   async function products(){
     if(cache) return cache;
     if(loading) return [];
@@ -346,12 +344,10 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
     }catch(e){console.warn('No se pudieron cargar productos relacionados:',e);return []}
     finally{loading=false}
   }
-
   function card(p){
     return '<a class="related-card" href="#/producto/'+encodeURIComponent(p.id)+'">'+img((p.photos||[])[0],p.name||'Producto')+
       '<div class="related-info"><b>'+esc(p.name||'Producto')+'</b><span>'+money(p.price)+'</span></div></a>';
   }
-
   async function mount(){
     if(!location.hash.startsWith('#/producto/')) return;
     const host=document.querySelector('.pd');
@@ -360,7 +356,6 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
     const list=await products();
     const current=list.find(p=>p.id===id);
     if(!current) return;
-
     const others=list.filter(p=>p.id!==id);
     const scored=others.map(p=>{
       let score=0;
@@ -370,7 +365,6 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
       if(Number(p.stock||0)>0 || Object.values(p.sizes||{}).some(n=>Number(n)>0)) score+=1;
       return {p,score};
     }).sort((a,b)=>b.score-a.score||String(a.p.name).localeCompare(String(b.p.name))).slice(0,8).map(x=>x.p);
-
     if(!scored.length) return;
     const section=document.createElement('section');
     section.className='related-products';
@@ -378,7 +372,6 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
     section.innerHTML='<div class="related-head"><div><span>TIENDA ATA</span><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
     host.insertAdjacentElement('afterend',section);
   }
-
   const observer=new MutationObserver(()=>{if(location.hash.startsWith('#/producto/')) setTimeout(mount,40)});
   observer.observe(document.getElementById('app'),{childList:true,subtree:true});
   window.addEventListener('hashchange',()=>setTimeout(mount,80));
@@ -403,65 +396,5 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
   }
   new MutationObserver(addToggle).observe(document.getElementById('app'),{childList:true,subtree:true});
   setTimeout(addToggle,80);
-})();
-</script></body></html>
-+Number(v||0).toLocaleString('es-MX')+' MXN';
-  const img=(src,name)=>{
-    const url=String(src||'');
-    return /^https:\/\//i.test(url)
-      ? '<img src="'+esc(url)+'" alt="'+esc(name)+'" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement(\'div\'),{className:\'ph\',textContent:\'Sin foto\'}))">'
-      : '<div class="ph">Sin foto</div>';
-  };
-
-  async function products(){
-    if(cache) return cache;
-    if(loading) return [];
-    loading=true;
-    try{
-      const client=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY,{auth:{persistSession:false}});
-      const {data,error}=await client.from('products').select('id,data,is_demo,created_at').order('created_at',{ascending:false});
-      if(error) throw error;
-      cache=(data||[]).filter(r=>r.data&&typeof r.data==='object'&&r.data.status==='published').map(r=>({...r.data,id:r.id}));
-      return cache;
-    }catch(e){console.warn('No se pudieron cargar productos relacionados:',e);return []}
-    finally{loading=false}
-  }
-
-  function card(p){
-    return '<a class="related-card" href="#/producto/'+encodeURIComponent(p.id)+'">'+img((p.photos||[])[0],p.name||'Producto')+
-      '<div class="related-info"><b>'+esc(p.name||'Producto')+'</b><span>'+money(p.price)+'</span></div></a>';
-  }
-
-  async function mount(){
-    if(!location.hash.startsWith('#/producto/')) return;
-    const host=document.querySelector('.pd');
-    if(!host||host.querySelector('.related-products')) return;
-    const id=decodeURIComponent(location.hash.slice('#/producto/'.length).split('?')[0]);
-    const list=await products();
-    const current=list.find(p=>p.id===id);
-    if(!current) return;
-
-    const others=list.filter(p=>p.id!==id);
-    const scored=others.map(p=>{
-      let score=0;
-      if(current.cat&&p.cat===current.cat) score+=5;
-      if(current.brand&&p.brand&&p.brand===current.brand) score+=4;
-      if(current.sizes&&p.sizes) score+=1;
-      if(Number(p.stock||0)>0 || Object.values(p.sizes||{}).some(n=>Number(n)>0)) score+=1;
-      return {p,score};
-    }).sort((a,b)=>b.score-a.score||String(a.p.name).localeCompare(String(b.p.name))).slice(0,8).map(x=>x.p);
-
-    if(!scored.length) return;
-    const section=document.createElement('section');
-    section.className='related-products';
-    const title=current.cat ? 'También te puede gustar' : 'Más productos';
-    section.innerHTML='<div class="related-head"><div><span>TIENDA ATA</span><h2>'+title+'</h2></div><a href="#/catalogo">Ver catálogo →</a></div><div class="related-grid">'+scored.map(card).join('')+'</div>';
-    host.insertAdjacentElement('afterend',section);
-  }
-
-  const observer=new MutationObserver(()=>{if(location.hash.startsWith('#/producto/')) setTimeout(mount,40)});
-  observer.observe(document.getElementById('app'),{childList:true,subtree:true});
-  window.addEventListener('hashchange',()=>setTimeout(mount,80));
-  setTimeout(mount,500);
 })();
 </script></body></html>

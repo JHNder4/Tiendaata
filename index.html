@@ -338,6 +338,15 @@ body.light-mode .theme-toggle{background:#fff;color:#1d1d1f;border-color:rgba(0,
 .card img,.related-card img,.tn img,.ci img{max-width:100%;height:auto;}
 body.light-mode .card > img,body.light-mode .related-card > img,body.light-mode .tn > img,body.light-mode .ci > img,
 body.light-mode .pd .track .sl,body.light-mode .pd .track .sl > img{background:#f2f2f7;}
+
+/* Secciones de tienda — General / Hombre / Mujer */
+.departments{display:flex;align-items:center;gap:6px;margin:0 0 34px;padding:5px;width:max-content;max-width:100%;overflow:auto;background:rgba(29,29,31,.72);border:1px solid rgba(255,255,255,.10);border-radius:14px;backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.departments a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:7px 18px;border-radius:10px;color:#a1a1a6;text-decoration:none;font-size:13px;font-weight:500;white-space:nowrap}
+.departments a:hover{color:#fff;background:rgba(255,255,255,.06)}
+.departments a.on{background:#f5f5f7;color:#1d1d1f}
+body.light-mode .departments{background:rgba(255,255,255,.82);border-color:rgba(0,0,0,.09)}
+body.light-mode .departments a{color:#6e6e73}body.light-mode .departments a:hover{color:#1d1d1f;background:#f2f2f7}body.light-mode .departments a.on{background:#1d1d1f;color:#fff}
+@media(max-width:600px){.departments{width:100%;margin-bottom:26px}.departments a{flex:1;padding-left:13px;padding-right:13px}}
 </style><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script></head><body>
 <div class="wrap" id="app"></div>
 <script src="/app.js" defer></script><script defer>

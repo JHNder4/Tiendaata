@@ -397,14 +397,14 @@ function done(orderNumber) {
 }
 
 function adminLogin(){
-  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta de Supabase.</p><form id="admin-login-form"><label>Correo<input id="admin-email" type="email" autocomplete="email" required placeholder="tu@correo.com"></label><label>Contraseña<input id="admin-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Tu contraseña"></label><div class="acts"><button class="btn" type="submit" id="login-submit">Entrar al panel</button><button class="btn s" type="button" id="signup-submit">Crear cuenta</button></div><p id="login-error" class="mu" role="alert"></p></form></section>`;
+  return `<section class="f admin-login"><h2>Acceso de administración</h2><p class="mu">Inicia sesión con tu cuenta de Supabase.</p><form id="admin-login-form"><label>Correo<input id="admin-email" type="email" autocomplete="email" required placeholder="tu@correo.com"></label><label>Contraseña<input id="admin-password" type="password" autocomplete="current-password" minlength="6" required placeholder="Tu contraseña"></label><div class="acts"><button class="btn" type="submit" id="login-submit">Entrar al panel</button><button class="btn s" type="button" id="signup-submit">Crear cuenta</button></div><button class="link-btn" type="button" id="forgot-submit">¿Olvidaste tu contraseña?</button><p id="login-error" class="mu" role="alert"></p></form></section>`;
 }
 function bindAdminLogin(){
   const form=$('#admin-login-form');
   if(!form || form.dataset.bound)return;
   form.dataset.bound='1';
   const emailInput=$('#admin-email'), passwordInput=$('#admin-password'), error=$('#login-error');
-  const loginButton=$('#login-submit'), signupButton=$('#signup-submit');
+  const loginButton=$('#login-submit'), signupButton=$('#signup-submit'), forgotButton=$('#forgot-submit');
   form.addEventListener('submit',async(event)=>{
     event.preventDefault();
     const email=emailInput.value.trim(),password=passwordInput.value;
@@ -422,6 +422,17 @@ function bindAdminLogin(){
       error.textContent=authErrorMessage(errorValue);
       loginButton.disabled=false;signupButton.disabled=false;loginButton.textContent='Entrar al panel';
     }
+  });
+  forgotButton?.addEventListener('click',async()=>{
+    const email=emailInput.value.trim();
+    if(!email)return error.textContent='Escribe tu correo para enviarte el enlace de recuperación.';
+    loginButton.disabled=true;signupButton.disabled=true;forgotButton.disabled=true;error.textContent='';forgotButton.textContent='Enviando…';
+    try{
+      const {error:resetError}=await client.auth.resetPasswordForEmail(email,{redirectTo:location.origin+location.pathname+'#/admin'});
+      if(resetError)throw resetError;
+      error.textContent='Te enviamos un enlace para restablecer tu contraseña. Revisa tu correo.';
+    }catch(errorValue){error.textContent=authErrorMessage(errorValue);}
+    finally{loginButton.disabled=false;signupButton.disabled=false;forgotButton.disabled=false;forgotButton.textContent='¿Olvidaste tu contraseña?';}
   });
   signupButton.addEventListener('click',async()=>{
     const email=emailInput.value.trim(),password=passwordInput.value;
@@ -470,15 +481,46 @@ async function signOut(){
   render();toast('Sesión cerrada.');
 }
 
+function dashboard() {
+  const pending=S.o.filter((o)=>o.status==='Pendiente de confirmar').length;
+  const confirmed=S.o.filter((o)=>o.status==='Confirmado'||o.status==='Preparando'||o.status==='Enviado').length;
+  const delivered=S.o.filter((o)=>o.status==='Entregado').length;
+  const cancelled=S.o.filter((o)=>o.status==='Cancelado').length;
+  const revenue=S.o.filter((o)=>o.status!=='Cancelado').reduce((sum,o)=>sum+orderTotal(o),0);
+  const low=S.p.filter((p)=>totalStock(p)>0&&totalStock(p)<=2).length;
+  const out=S.p.filter((p)=>totalStock(p)<=0).length;
+  const published=S.p.filter((p)=>p.status==='published').length;
+  return `<h2>Resumen de la tienda</h2><div class="dash-grid">
+    <a class="f stat" href="#/admin/pedidos"><b>${S.o.length}</b><span>Pedidos totales</span></a>
+    <a class="f stat" href="#/admin/pedidos"><b>${pending}</b><span>Por confirmar</span></a>
+    <a class="f stat" href="#/admin/inventario"><b>${low}</b><span>Stock bajo</span></a>
+    <a class="f stat" href="#/admin/inventario"><b>${out}</b><span>Agotados</span></a>
+    <a class="f stat" href="#/admin/productos"><b>${published}</b><span>Publicados</span></a>
+    <div class="f stat"><b>${money(revenue)}</b><span>Ventas registradas*</span></div>
+  </div><section class="f"><h2>Estado de pedidos</h2><p>Confirmados/en proceso: <b>${confirmed}</b> · Entregados: <b>${delivered}</b> · Cancelados: <b>${cancelled}</b></p><p class="mu">* Total de pedidos no cancelados; no significa necesariamente pagos cobrados.</p></section>
+  <section class="f"><h2>Acciones rápidas</h2><div class="row"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><a class="btn s" href="#/admin/pedidos">Ver pedidos</a><a class="btn s" href="#/admin/promociones">Nueva promoción</a><button class="btn s" onclick="exportOrders()">Exportar pedidos CSV</button></div></section>`;
+}
 function adminShell(section, content) {
-  const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
+  const tabs = [['dashboard', 'Resumen', 0], ['pedidos', 'Pedidos', S.o.filter((o) => o.status === 'Pendiente de confirmar').length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0]];
   return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
 }
 
-function orders() {
-  return S.o.length
-    ? `<table><thead><tr><th>N.º</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${S.o.map((order) => `<tr><td>#${esc(order.n)}</td><td>${esc(order.name)}</td><td>${money(orderTotal(order))}</td><td>${esc(order.status)}</td><td><a class="btn s sm" href="#/admin/pedido/${encodeURIComponent(order.n)}">Abrir</a></td></tr>`).join('')}</tbody></table>`
-    : '<p class="mu">Aún no hay pedidos registrados.</p>';
+function orders(query = '') {
+  return `<div class="row"><input id="oq" value="${esc(query)}" placeholder="Buscar por pedido, cliente, teléfono o estado" oninput="refreshOrderList()" style="flex:1"><button class="btn s" type="button" onclick="exportOrders()">Exportar CSV</button></div><div id="ol" style="margin-top:10px">${orderTable(S.o.filter((order)=>!query||`${order.n} ${order.name||''} ${order.phone||''} ${order.status||''}`.toLowerCase().includes(query.toLowerCase())) )}</div>`;
+}
+function orderTable(list) {
+  return list.length
+    ? `<table><thead><tr><th>N.º</th><th>Cliente</th><th>Total</th><th>Estado</th><th></th></tr></thead><tbody>${list.map((order) => `<tr><td>#${esc(order.n)}</td><td>${esc(order.name)}</td><td>${money(orderTotal(order))}</td><td>${esc(order.status)}</td><td><a class="btn s sm" href="#/admin/pedido/${encodeURIComponent(order.n)}">Abrir</a></td></tr>`).join('')}</tbody></table>`
+    : '<p class="mu">No hay pedidos que coincidan.</p>';
+}
+function refreshOrderList() {
+  const input=$('#oq'); const host=$('#ol'); if(host){const q=input?.value.trim().toLowerCase()||'';host.innerHTML=orderTable(S.o.filter((o)=>!q||`${o.n} ${o.name||''} ${o.phone||''} ${o.status||''}`.toLowerCase().includes(q)));}
+}
+function exportOrders() {
+  if(!S.o.length)return toast('No hay pedidos para exportar.');
+  const rows=[['Pedido','Fecha','Cliente','Teléfono','Estado','Total'],...S.o.map((o)=>[o.n,o.date||'',o.name||'',o.phone||'',o.status||'',orderTotal(o).toFixed(2)])];
+  const csv='\uFEFF'+rows.map((row)=>row.map((v)=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='pedidos-tienda-ata.csv';link.click();URL.revokeObjectURL(url);toast('Pedidos exportados.');
 }
 
 function orderDetail(number) {
@@ -807,6 +849,7 @@ function loginOrAdminContent(section, route) {
   else if (section === 'promociones') content = promotions();
   else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
   else if (section === 'inventario') content = inventory();
+  else if (section === 'dashboard') content = dashboard();
   else content = '<p>Página no encontrada.</p>';
   return { html: adminShell(section === 'pedido' ? 'pedidos' : section === 'producto' ? 'productos' : section, content), after };
 }
@@ -820,7 +863,7 @@ function render() {
   const params = new URLSearchParams(query || '');
 
   if (route[0] === 'admin') {
-    const section = route[1] || 'pedidos';
+    const section = route[1] || 'dashboard';
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
     if (typeof result === 'string') bindAdminLogin();

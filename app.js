@@ -21,6 +21,10 @@ const DEFAULT_BANNERS = [
   { id: 'banner_home_3', kind: 'Tienda Ata', title: 'Compra fácil', subtitle: 'Explora categorías, encuentra tu talla y arma tu pedido.', link: '#/catalogo', button_text: 'Explorar tienda', active: true, position: 2 }
 ];
 const ORDER_STATUSES = ['Pendiente de confirmar', 'Confirmado', 'Preparando', 'Enviado', 'Entregado', 'Cancelado'];
+const PAYMENT_STATUSES = ['Pendiente', 'Por confirmar', 'Pagado', 'Reembolsado'];
+const DELIVERY_STATUSES = ['Pendiente', 'En preparación', 'En camino', 'Entregado'];
+const LAST_ORDER_KEY = K + '-ultimo-pedido';
+const DEFAULT_TRACKING_MESSAGE = 'Gracias por tu compra. Puedes consultar aquí el estado de tu pedido.';
 const DEMO_PRODUCTS = [];
 
 const placeholderImage = (color, kind, number) => 'data:image/svg+xml,' + encodeURIComponent(
@@ -46,7 +50,7 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
   det: {}
 }));
 
-let S = { p: [], o: [], c: [], promos: [], banners: [] };
+let S = { p: [], o: [], c: [], promos: [], banners: [], settings: {} };
 let isAdmin = false;
 let authChecking = false;
 let recoveryMode = false;
@@ -178,6 +182,13 @@ async function loadBanners(){
   if(error)throw error;
   S.banners=data||[];
 }
+async function loadSettings(){const {data,error}=await client.from('store_settings').select('key,value,updated_at');if(error)throw error;S.settings=Object.fromEntries((data||[]).map((row)=>[row.key,row.value??'']));}
+function settingValue(key,fallback=''){return Object.hasOwn(S.settings,key)?String(S.settings[key]??''):fallback;}
+function settingOptions(key){return settingValue(key).split(/\r?\n|,/).map((value)=>value.trim()).filter(Boolean);}
+function whatsappNumber(){const digits=settingValue('whatsapp').replace(/\D/g,'');return digits?(digits.length===10?'52'+digits:digits):'';}
+function whatsappUrl(message=''){const number=whatsappNumber();return number?`https://wa.me/${number}?text=${encodeURIComponent(message)}`:'';}
+function trackingUrl(number,token){return `${location.origin}${location.pathname}#/seguimiento/${encodeURIComponent(number)}?token=${encodeURIComponent(token)}`;}
+function lastOrder(){try{const value=JSON.parse(localStorage.getItem(LAST_ORDER_KEY)||'null');return value&&value.n&&value.token?value:null;}catch(_){return null;}}
 
 async function refreshAdminState(){
   if(!isAdmin){S.o=[];return;}
@@ -448,56 +459,54 @@ function cr(index) {
   void save().then(render);
 }
 
+
 const ORDER_NOTE = '';
 function checkout() {
   if (!cartRows().length) return '<p>Tu carrito está vacío. <a href="#/catalogo">Ver catálogo</a></p>';
-  return `<h1>Finalizar pedido</h1>${ORDER_NOTE}<form id="checkout-form"><label>Nombre<input name="name" autocomplete="name" required maxlength="120"></label><label>Teléfono<input name="phone" type="tel" autocomplete="tel" required maxlength="40"></label><label>Dirección de entrega<textarea name="addr" autocomplete="street-address" required maxlength="500"></textarea></label><label>Notas (opcional)<textarea name="notes" maxlength="1000"></textarea></label><h2>Total: ${money(cartTotal())}</h2><button class="btn" id="cb">Confirmar pedido</button></form>`;
+  const payments=settingOptions('payment_methods'),deliveries=settingOptions('delivery_methods');
+  const paymentField=payments.length?`<label>Forma de pago<select name="payment_method"><option value="">Selecciona una opción</option>${payments.map((value)=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></label>`:'<p class="mu sales-note">La forma de pago se confirma con la tienda.</p>';
+  const deliveryField=deliveries.length?`<label>Forma de entrega<select name="delivery_method"><option value="">Selecciona una opción</option>${deliveries.map((value)=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></label>`:'<p class="mu sales-note">La forma de entrega se confirma con la tienda.</p>';
+  const contact=whatsappUrl('Hola, quiero ayuda con un pedido de Tienda Ata.');
+  return `<h1>Finalizar pedido</h1>${ORDER_NOTE}<form id="checkout-form"><label>Nombre<input name="name" autocomplete="name" required maxlength="120"></label><label>WhatsApp / Teléfono<input name="phone" type="tel" autocomplete="tel" required maxlength="40" placeholder="10 dígitos"></label><label>Dirección de entrega<textarea name="addr" autocomplete="street-address" required maxlength="500"></textarea></label>${deliveryField}${paymentField}<label>Notas del pedido (opcional)<textarea name="notes" maxlength="1000" placeholder="Color, horario, referencia, etc."></textarea></label><h2>Total: ${money(cartTotal())}</h2><div class="acts"><button class="btn" id="cb">Confirmar pedido</button>${contact?`<a class="btn s" href="${esc(contact)}" target="_blank" rel="noopener">Hablar por WhatsApp</a>`:""}</div></form>`;
 }
-
 async function placeOrder(event) {
   event.preventDefault();
-  const form = event.currentTarget;
-  const rows = cartRows();
-  if (!rows.length) return toast('Tu carrito está vacío.');
-  const button = $('#cb');
-  if (button?.disabled) return;
-  if (button) { button.disabled = true; button.textContent = 'Enviando…'; }
-
-  const order = {
-    date: new Date().toISOString(),
-    name: form.elements.name.value.trim(),
-    phone: form.elements.phone.value.trim(),
-    addr: form.elements.addr.value.trim(),
-    notes: form.elements.notes.value.trim(),
-    status: ORDER_STATUSES[0],
-    items: rows.map(({ item, product }) => ({
-      pid: product.id,
-      name: product.name,
-      size: item.size,
-      qty: item.qty,
-      price: effectivePrice(product)
-    }))
-  };
-
+  const form=event.currentTarget,rows=cartRows();
+  if(!rows.length)return toast('Tu carrito está vacío.');
+  const button=$('#cb');if(button?.disabled)return;
+  if(button){button.disabled=true;button.textContent='Enviando…';}
+  const order={date:new Date().toISOString(),name:form.elements.name.value.trim(),phone:form.elements.phone.value.trim(),addr:form.elements.addr.value.trim(),notes:form.elements.notes.value.trim(),delivery_method:form.elements.delivery_method?.value.trim()||'',payment_method:form.elements.payment_method?.value.trim()||'',status:ORDER_STATUSES[0],items:rows.map(({item,product})=>({pid:product.id,name:product.name,size:item.size,qty:item.qty,price:effectivePrice(product)}))};
   try {
-    const { data, error } = await client.rpc('crear_pedido', { p: order });
-    if (error) throw error;
-    const orderNumber = Number(data);
-    S.c = [];
-    try { await loadProducts(); }
-    catch (reloadError) { console.warn('Pedido creado; no se actualizó el catálogo local:', reloadError); }
-    await save();
-    $('#cc') && ($('#cc').textContent = '0');
-    go(`#/confirmacion/${encodeURIComponent(orderNumber)}`);
-  } catch (error) {
-    console.error('No se pudo registrar el pedido:', error);
-    if (button) { button.disabled = false; button.textContent = 'Confirmar pedido'; }
-    toast(error.message?.includes('Sin existencias') ? 'El inventario cambió. Revisa tu carrito.' : 'No se pudo registrar el pedido. Inténtalo de nuevo.');
+    const {data,error}=await client.rpc('crear_pedido',{p:order});if(error)throw error;
+    const orderNumber=Number(data?.n??data),trackingToken=String(data?.token||'');
+    if(!orderNumber||!trackingToken)throw new Error('No se recibió el seguimiento del pedido.');
+    try{localStorage.setItem(LAST_ORDER_KEY,JSON.stringify({n:orderNumber,token:trackingToken}));}catch(_){}
+    S.c=[];try{await loadProducts();}catch(reloadError){console.warn('Pedido creado; no se actualizó el catálogo local:',reloadError);}
+    await save();$('#cc')&&($('#cc').textContent='0');go(`#/confirmacion/${encodeURIComponent(orderNumber)}`);
+  } catch(error) {
+    console.error('No se pudo registrar el pedido:',error);
+    if(button){button.disabled=false;button.textContent='Confirmar pedido';}
+    toast(error.message?.includes('Sin existencias')?'El inventario cambió. Revisa tu carrito.':'No se pudo registrar el pedido. Inténtalo de nuevo.');
   }
 }
-
 function done(orderNumber) {
-  return `<h1>Pedido #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido quedó registrado correctamente.</p><a class="btn" href="#/catalogo">Seguir viendo</a>`;
+  const last=lastOrder(),link=last&&String(last.n)===String(orderNumber)?trackingUrl(last.n,last.token):'',wa=whatsappUrl(`Hola, acabo de hacer el pedido #${orderNumber} en Tienda Ata.`);
+  return `<section class="sales-success"><span class="sales-kicker">PEDIDO RECIBIDO</span><h1>Pedido #${esc(orderNumber)}</h1>${ORDER_NOTE}<p>Tu pedido quedó registrado correctamente. Guarda tu número de pedido para consultarlo.</p><div class="acts">${link?`<a class="btn" href="${esc(link)}">Dar seguimiento</a>`:""}${wa?`<a class="btn s" href="${esc(wa)}" target="_blank" rel="noopener">Abrir WhatsApp</a>`:""}<a class="btn s" href="#/catalogo">Seguir viendo</a></div></section>`;
+}
+function tracking(number,token){return `<section class="tracking-shell" data-tracking-number="${esc(number)}" data-tracking-token="${esc(token)}"><div id="tracking-view"><span class="sales-kicker">SEGUIMIENTO</span><h1>Pedido #${esc(number)}</h1><p class="mu">Consultando el estado de tu pedido…</p></div></section>`;}
+function trackingStatusSteps(order){const current=order.status||ORDER_STATUSES[0],currentIndex=ORDER_STATUSES.filter((status)=>status!=='Cancelado').indexOf(current);return ORDER_STATUSES.filter((status)=>status!=='Cancelado').map((status,index)=>`<div class="tracking-step ${index<=currentIndex?'done':''} ${status===current?'active':''}"><span>${index<=currentIndex?'✓':index+1}</span><div><b>${esc(status)}</b>${status===current?'<small>Estado actual</small>':''}</div></div>`).join('');}
+function trackingCard(order,token) {
+  const history=Array.isArray(order.status_history)?order.status_history.slice().reverse():[],wa=whatsappUrl(`Hola, tengo el pedido #${order.n} y necesito ayuda.`),lastUpdated=order.updated_at||order.date,follow=trackingUrl(order.n,token);
+  return `<div class="tracking-card"><div class="tracking-head"><div><span class="sales-kicker">PEDIDO</span><h1>#${esc(order.n)}</h1></div><span class="tracking-status">${esc(order.status||'Pendiente de confirmar')}</span></div><div class="tracking-steps">${order.status==='Cancelado'?'<div class="tracking-cancelled">Pedido cancelado</div>':trackingStatusSteps(order)}</div><div class="tracking-summary"><div><span>Cliente</span><b>${esc(order.name||'')}</b></div><div><span>Total</span><b>${money(orderTotal(order))}</b></div><div><span>Pago</span><b>${esc(order.payment_status||'Pendiente')}</b></div><div><span>Entrega</span><b>${esc(order.delivery_status||'Pendiente')}</b></div></div><div class="tracking-items"><h3>Tu pedido</h3>${(order.items||[]).map((item)=>`<div class="tracking-item"><span>${esc(item.name)}</span><span>${item.size?`Talla ${esc(item.size)} · `:""}x${esc(item.qty)} · ${money(item.price)}</span></div>`).join('')}</div>${order.delivery_method||order.payment_method?`<p class="mu"><b>Entrega:</b> ${esc(order.delivery_method||'Por confirmar')} · <b>Pago:</b> ${esc(order.payment_method||'Por confirmar')}</p>`:""}${settingValue('tracking_message',DEFAULT_TRACKING_MESSAGE)?`<p class="sales-message">${esc(settingValue('tracking_message',DEFAULT_TRACKING_MESSAGE))}</p>`:""}<div class="acts">${wa?`<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">Necesito ayuda</a>`:""}<button class="btn s" type="button" data-copy-tracking="${esc(follow)}">Copiar enlace</button></div><p class="mu tracking-updated">Última actualización: ${esc(lastUpdated?new Date(lastUpdated).toLocaleString('es-MX'):'')}</p>${history.length?`<details><summary>Historial de estados</summary><div class="tracking-history">${history.map((item)=>`<div><b>${esc(item.status)}</b><span>${esc(item.at?new Date(item.at).toLocaleString('es-MX'):'')}</span></div>`).join('')}</div></details>`:""}</div>`;
+}
+async function bindTracking() {
+  const node=$('.tracking-shell'),host=$('#tracking-view');if(!node||!host)return;
+  const number=decodeURIComponent(node.dataset.trackingNumber||''),token=node.dataset.trackingToken||'';
+  if(!number||!token){host.innerHTML='<p class="mu">Enlace de seguimiento inválido.</p>';return;}
+  if(window.__ataTrackingCleanup){window.__ataTrackingCleanup();window.__ataTrackingCleanup=null;}
+  let stopped=false,busy=false;
+  const refresh=async()=>{if(stopped||busy||document.hidden)return;busy=true;try{const {data,error}=await client.rpc('consultar_pedido',{p_n:Number(number),p_token:token});if(error)throw error;if(!data){host.innerHTML='<p class="mu">No pudimos encontrar este pedido. Revisa el enlace de seguimiento.</p>';return;}host.innerHTML=trackingCard(data,token);$('[data-copy-tracking]',host)?.addEventListener('click',async(event)=>{try{await navigator.clipboard.writeText(event.currentTarget.dataset.copyTracking);toast('Enlace copiado.');}catch(_){toast('No se pudo copiar el enlace.');}});}catch(error){console.error('No se pudo consultar el pedido:',error);host.innerHTML='<p class="mu">No se pudo consultar el pedido. Intenta nuevamente en unos segundos.</p>';}finally{busy=false;}};
+  await refresh();const timer=setInterval(refresh,10000);window.__ataTrackingCleanup=()=>{stopped=true;clearInterval(timer);};
 }
 
 function adminLogin(){
@@ -535,7 +544,7 @@ function bindAdminLogin(){
       if(authError)throw authError;
       if(!data.session)throw new Error('No se pudo iniciar la sesión.');
       isAdmin=true;
-      await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);
+      await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners(),loadSettings()]);
       render();toast('Sesión iniciada.');
     }catch(errorValue){
       isAdmin=false;
@@ -563,7 +572,7 @@ function bindAdminLogin(){
       const {data,error:authError}=await client.auth.signUp({email,password});
       if(authError)throw authError;
       if(data.session){
-        isAdmin=true;await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);render();toast('Cuenta creada y sesión iniciada.');
+        isAdmin=true;await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners(),loadSettings()]);render();toast('Cuenta creada y sesión iniciada.');
       }else{
         error.textContent='Cuenta creada. Revisa tu correo para confirmar la cuenta y después inicia sesión.';
         loginButton.disabled=false;signupButton.disabled=false;signupButton.textContent='Crear cuenta';
@@ -587,7 +596,7 @@ async function verifyAdminSession(){
   try{
     const user=await currentUser();
     isAdmin=!!user;
-    if(isAdmin){await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners()]);}
+    if(isAdmin){await Promise.all([loadProducts(),loadOrders(),loadPromotions(),loadBanners(),loadSettings()]);}
   }catch(error){
     console.error('No se pudo verificar la sesión:',error);
     isAdmin=false;S.o=[];S.promos=[];
@@ -597,7 +606,7 @@ async function signOut(){
   const {error}=await client.auth.signOut();
   if(error){toast('No se pudo cerrar sesión.');return;}
   isAdmin=false;S.o=[];S.promos=[];
-  try{await Promise.all([loadProducts(),loadPromotions(),loadBanners()]);}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
+  try{await Promise.all([loadProducts(),loadPromotions(),loadBanners(),loadSettings()]);}catch(errorValue){console.warn('No se pudo restaurar el catálogo público tras cerrar sesión:',errorValue);}
   render();toast('Sesión cerrada.');
 }
 
@@ -619,6 +628,15 @@ function dashboard() {
     <div class="f stat"><b>${money(revenue)}</b><span>Ventas registradas*</span></div>
   </div><section class="f"><h2>Estado de pedidos</h2><p>Confirmados/en proceso: <b>${confirmed}</b> · Entregados: <b>${delivered}</b> · Cancelados: <b>${cancelled}</b></p><p class="mu">* Total de pedidos no cancelados; no significa necesariamente pagos cobrados.</p></section>
   <section class="f"><h2>Acciones rápidas</h2><div class="row"><a class="btn" href="#/admin/producto/nuevo">Nuevo producto</a><a class="btn s" href="#/admin/pedidos">Ver pedidos</a><a class="btn s" href="#/admin/promociones">Nueva promoción</a><button class="btn s" onclick="exportOrders()">Exportar pedidos CSV</button></div></section>`;
+}
+
+function salesSettings() {
+  const wa=whatsappUrl('Hola, quiero contactar a Tienda Ata.');
+  return `<section class="f sales-settings"><div class="admin-section-head"><div><span class="admin-eyebrow">VENTAS</span><h2>Comunicación y checkout</h2><p class="mu">Configura WhatsApp, formas de pago, formas de entrega y el mensaje que verá el cliente durante el seguimiento.</p></div></div><div class="sales-settings-grid"><label>WhatsApp de atención<input id="store-whatsapp" value="${esc(settingValue('whatsapp'))}" inputmode="tel" placeholder="52 + 10 dígitos"></label><label>Formas de pago<textarea id="store-payment-methods" rows="4" placeholder="Una por línea">${esc(settingValue('payment_methods'))}</textarea></label><label>Formas de entrega<textarea id="store-delivery-methods" rows="4" placeholder="Una por línea">${esc(settingValue('delivery_methods'))}</textarea></label><label>Mensaje en seguimiento<textarea id="store-tracking-message" rows="4">${esc(settingValue('tracking_message',DEFAULT_TRACKING_MESSAGE))}</textarea></label></div><div class="acts"><button class="btn" id="save-sales-settings" type="button">Guardar configuración</button>${wa?`<a class="btn s" href="${esc(wa)}" target="_blank" rel="noopener">Probar WhatsApp</a>`:""}</div></section>`;
+}
+async function bindSalesSettings() {
+  const button=$('#save-sales-settings');if(!button||button.dataset.bound)return;button.dataset.bound='1';
+  button.addEventListener('click',async()=>{button.disabled=true;button.textContent='Guardando…';try{await requireAuthenticatedUser();const stamp=new Date().toISOString();const rows=[{key:'whatsapp',value:$('#store-whatsapp')?.value.trim()||'',updated_at:stamp},{key:'payment_methods',value:$('#store-payment-methods')?.value.trim()||'',updated_at:stamp},{key:'delivery_methods',value:$('#store-delivery-methods')?.value.trim()||'',updated_at:stamp},{key:'tracking_message',value:$('#store-tracking-message')?.value.trim()||DEFAULT_TRACKING_MESSAGE,updated_at:stamp}];const {error}=await client.from('store_settings').upsert(rows,{onConflict:'key'});if(error)throw error;await loadSettings();render();toast('Configuración de ventas guardada.');}catch(error){console.error('No se pudo guardar la configuración de ventas:',error);toast(error.message||'No se pudo guardar la configuración.');button.disabled=false;button.textContent='Guardar configuración';}});
 }
 function bannerSettings() {
   return DEFAULT_BANNERS.map((fallback) => {
@@ -741,25 +759,26 @@ function exportOrders() {
   const blob=new Blob([csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;link.download='pedidos-tienda-ata.csv';link.click();URL.revokeObjectURL(url);toast('Pedidos exportados.');
 }
 
-function orderDetail(number) {
-  const order = S.o.find((item) => String(item.n) === String(number));
-  if (!order) return '<p>Pedido no encontrado.</p>';
-  const date = order.date ? new Date(order.date).toLocaleString('es-MX') : '';
-  return `<a href="#/admin/pedidos">← Pedidos</a><h2>Pedido #${esc(order.n)}</h2><p class="mu">${esc(date)}</p><label>Estado<select id="order-status">${ORDER_STATUSES.map((status) => `<option ${status === order.status ? 'selected' : ''}>${esc(status)}</option>`).join('')}</select></label>
-    <table><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th></tr></thead><tbody>${(order.items || []).map((item) => `<tr><td>${esc(item.name)}</td><td>${esc(item.size || '—')}</td><td>${esc(item.qty)}</td><td>${money(item.price)}</td></tr>`).join('')}</tbody></table><h3 style="margin-top:12px">Total: ${money(orderTotal(order))}</h3>
-    <p><b>Nombre:</b> ${esc(order.name)}<br><b>Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Notas:</b> ${esc(order.notes || '—')}</p>`;
-}
 
-async function setSt(number,status){
-  const order=S.o.find(item=>String(item.n)===String(number));if(!order)return;
-  const old=order.status;order.status=status;const {n,...payload}=order;
-  try{
-    await requireAuthenticatedUser();
-    const {error}=await client.from('orders').update({data:payload}).eq('n',number);
-    if(error)throw error;
-    toast('Estado actualizado.');
-  }catch(_){order.status=old;render();toast('No se pudo actualizar el estado del pedido.');}
+function orderDetail(number){
+  const order=S.o.find((item)=>String(item.n)===String(number));if(!order)return '<p>Pedido no encontrado.</p>';
+  const date=order.date?new Date(order.date).toLocaleString('es-MX'):'';const token=order.tracking_token||'';const follow=token?trackingUrl(order.n,token):'';const wa=whatsappUrl(`Hola ${order.name||''}, somos Tienda Ata. Te contactamos sobre tu pedido #${order.n}. Estado actual: ${order.status||'Pendiente de confirmar'}.`);
+  return `<a href="#/admin/pedidos">← Pedidos</a><div class="order-detail-head"><div><span class="sales-kicker">VENTA</span><h2>Pedido #${esc(order.n)}</h2><p class="mu">${esc(date)}</p></div><span class="tracking-status">${esc(order.status||'Pendiente de confirmar')}</span></div><section class="f order-controls"><div class="order-controls-grid"><label>Estado del pedido<select id="order-status">${ORDER_STATUSES.map((status)=>`<option ${status===order.status?'selected':''}>${esc(status)}</option>`).join('')}</select></label><label>Estado del pago<select id="order-payment-status">${PAYMENT_STATUSES.map((status)=>`<option ${status===(order.payment_status||'Pendiente')?'selected':''}>${esc(status)}</option>`).join('')}</select></label><label>Estado de entrega<select id="order-delivery-status">${DELIVERY_STATUSES.map((status)=>`<option ${status===(order.delivery_status||'Pendiente')?'selected':''}>${esc(status)}</option>`).join('')}</select></label></div><div class="acts">${wa?`<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>`:""}${follow?`<button class="btn s" id="copy-order-link" type="button">Copiar seguimiento</button><a class="btn s" href="${esc(follow)}" target="_blank" rel="noopener">Ver seguimiento</a>`:""}</div></section><table><thead><tr><th>Producto</th><th>Talla</th><th>Cant.</th><th>Precio</th></tr></thead><tbody>${(order.items||[]).map((item)=>`<tr><td>${esc(item.name)}</td><td>${esc(item.size||'—')}</td><td>${esc(item.qty)}</td><td>${money(item.price)}</td></tr>`).join('')}</tbody></table><h3 style="margin-top:12px">Total: ${money(orderTotal(order))}</h3><section class="f order-customer"><h3>Cliente</h3><p><b>Nombre:</b> ${esc(order.name)}<br><b>WhatsApp / Teléfono:</b> ${esc(order.phone)}<br><b>Dirección:</b> ${esc(order.addr)}<br><b>Entrega:</b> ${esc(order.delivery_method||'Por confirmar')}<br><b>Pago:</b> ${esc(order.payment_method||'Por confirmar')}<br><b>Notas:</b> ${esc(order.notes||'—')}</p></section>${Array.isArray(order.status_history)&&order.status_history.length?`<section class="f"><h3>Historial de estados</h3><div class="admin-history">${order.status_history.slice().reverse().map((item)=>`<div><b>${esc(item.status)}</b><span>${esc(item.at?new Date(item.at).toLocaleString('es-MX'):'')}</span></div>`).join('')}</div></section>`:""}`;
 }
+async function updateOrderFields(number,fields){
+  const order=S.o.find((item)=>String(item.n)===String(number));if(!order)return false;const before={status:order.status,payment_status:order.payment_status,delivery_status:order.delivery_status},next={...before,...fields};
+  if(next.status==='Enviado'&&next.delivery_status==='Pendiente')next.delivery_status='En camino';if(next.status==='Entregado')next.delivery_status='Entregado';
+  const history=Array.isArray(order.status_history)?order.status_history.slice():[];if(next.status!==before.status)history.push({status:next.status,at:new Date().toISOString()});
+  const payload={...order,status:next.status,payment_status:next.payment_status,delivery_status:next.delivery_status,status_history:history,updated_at:new Date().toISOString()};const {n,...data}=payload;
+  try{await requireAuthenticatedUser();const {error}=await client.from('orders').update({data}).eq('n',number);if(error)throw error;Object.assign(order,payload);toast('Pedido actualizado.');return true;}catch(error){console.error('No se pudo actualizar el pedido:',error);toast('No se pudo actualizar el pedido.');return false;}
+}
+function bindOrderDetail(number){
+  const order=S.o.find((item)=>String(item.n)===String(number));if(!order)return;
+  [['order-status','status'],['order-payment-status','payment_status'],['order-delivery-status','delivery_status']].forEach(([id,key])=>{const el=$('#'+id);if(!el||el.dataset.bound)return;el.dataset.bound='1';el.addEventListener('change',async()=>{const ok=await updateOrderFields(number,{[key]:el.value});if(ok)render();});});
+  $('#copy-order-link')?.addEventListener('click',async()=>{if(!order.tracking_token)return;try{await navigator.clipboard.writeText(trackingUrl(order.n,order.tracking_token));toast('Enlace de seguimiento copiado.');}catch(_){toast('No se pudo copiar el enlace.');}});
+}
+async function setSt(number,status){await updateOrderFields(number,{status});}
+
 
 function productList(query = '') {
   const text = query.toLowerCase();
@@ -1066,6 +1085,7 @@ function loginOrAdminContent(section, route) {
   else if (section === 'productos') content = products();
   else if (section === 'promociones') content = promotions();
   else if (section === 'banners') content = banners();
+  else if (section === 'ventas') { content = salesSettings(); after = bindSalesSettings; }
   else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
   else if (section === 'inventario') content = inventory();
   else if (section === 'dashboard') content = dashboard();
@@ -1085,8 +1105,8 @@ if(/\b(hola|buenas|hey|holi)\b/.test(n))return '¡Hola! 👋 Soy el asistente de
 if(/gracias|perfecto|excelente/.test(n))return '¡Con gusto! 👋 Si necesitas algo más, aquí estoy.';
 if(/ayuda|que puedes hacer|como me ayudas/.test(n))return 'Puedo buscar productos, precios, tallas, stock, ofertas, categorías, productos para hombre o mujer y ayudarte a comprar desde el carrito.';
 if(/comprar|pedido|pedir|carrito/.test(n))return 'Para comprar: abre un producto, elige talla si aplica, pulsa “Agregar al carrito”, entra al carrito y después “Finalizar pedido”. Ahí se solicitan nombre, teléfono y dirección.';
-if(/envio|entrega|domicilio/.test(n))return 'El pedido se finaliza desde el carrito con tu nombre, teléfono y dirección. Si quieres conocer costo, cobertura o tiempo de entrega, hay que confirmarlo con la tienda porque esa información no está publicada aquí.';
-if(/pago|pagar|efectivo|tarjeta|transferencia/.test(n))return 'El sitio registra el pedido, pero no tiene publicado un método de pago específico. Para confirmar cómo pagar, consulta directamente con la tienda.';
+if(/envio|entrega|domicilio/.test(n)){const methods=settingOptions('delivery_methods');return methods.length?'Las formas de entrega disponibles son: '+methods.join(', ')+'.':'La forma de entrega se confirma con la tienda.';}
+if(/pago|pagar|efectivo|tarjeta|transferencia/.test(n)){const methods=settingOptions('payment_methods');return methods.length?'Las formas de pago disponibles son: '+methods.join(', ')+'.':'La forma de pago se confirma con la tienda.';}
 if(/cambio|devolucion|reembolso|garantia/.test(n))return 'No encuentro una política publicada de cambios o devoluciones, así que prefiero no inventarte una. Confírmala directamente con la tienda.';
 if(/oferta|promocion|descuento|rebaja/.test(n)){const promos=activePromotions();const sale=available.filter(p=>effectivePrice(p)<Number(p.price||0)||Number(p.old)>Number(p.price));if(promos.length||sale.length)return 'Sí, tengo promociones activas.'+(promos.length?'\n'+promos.slice(0,5).map(x=>'• '+x.title+(x.description?' — '+x.description:'')).join('\n'):'')+(sale.length?'\\n\\nProductos con precio reducido:\\n'+sale.slice(0,5).map(chatProductLine).join('\n'):'');return 'Ahora mismo no veo promociones activas.';}
 const amount=n.match(/(?:menos de|hasta|maximo de|máximo de)\s*\$?([0-9][0-9,]*)/);if(amount){const max=Number(amount[1].replace(/,/g,''));const list=available.filter(p=>effectivePrice(p)<=max).sort((a,b)=>effectivePrice(a)-effectivePrice(b)).slice(0,6);return list.length?'Encontré estas opciones dentro de tu presupuesto:\\n'+list.map(chatProductLine).join('\n'):'No encontré productos disponibles dentro de ese presupuesto.';}
@@ -1105,6 +1125,8 @@ function render() {
   const app = $('#app');
   if (!ready) { app.innerHTML = '<p class="mu">Conectando con la tienda…</p>'; return; }
   if (/\/admin\/?$/.test(location.pathname) && !location.hash) location.hash = '#/admin';
+  if(window.__ataBannerAutoplayCleanup){window.__ataBannerAutoplayCleanup();window.__ataBannerAutoplayCleanup=null;}
+  if(window.__ataTrackingCleanup){window.__ataTrackingCleanup();window.__ataTrackingCleanup=null;}
   const [path, query] = (location.hash.slice(1) || '/').split('?');
   const route = path.split('/').filter(Boolean);
   const params = new URLSearchParams(query || '');
@@ -1115,7 +1137,7 @@ function render() {
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
     applyTheme(); bindThemeToggle(); bindChat();
     if (typeof result === 'string') { bindAdminLogin(); void bindRecovery(); }
-    else { result.after?.(); if (section === 'promociones') bindPromotions(); if (section === 'banners') bindBanners(); }
+    else { result.after?.(); if (section === 'promociones') bindPromotions(); if (section === 'banners') bindBanners(); if (section === 'pedido') bindOrderDetail(route[2]); }
     $('#logout-button')?.addEventListener('click', () => { void signOut(); });
     return;
   }
@@ -1129,6 +1151,7 @@ function render() {
   else if (route[0] === 'carrito') content = cart();
   else if (route[0] === 'pedido') content = checkout();
   else if (route[0] === 'confirmacion') content = done(route[1]);
+  else if (route[0] === 'seguimiento') { content = tracking(route[1] || '', params.get('token') || ''); after = bindTracking; }
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
   applyTheme(); bindThemeToggle(); bindChat(); setupBannerAutoplay();
@@ -1195,7 +1218,7 @@ async function init(){
   // Pintar la interfaz inmediatamente. La tienda no debe quedarse en blanco si Supabase tarda o falla.
   render();
   try {
-    await Promise.all([loadProducts(), loadPromotions(), loadBanners()]);
+    await Promise.all([loadProducts(), loadPromotions(), loadBanners(), loadSettings()]);
   } catch(error) {
     console.error('No se pudieron cargar todos los datos públicos:', error);
   }

@@ -9,31 +9,17 @@
 (() => {
   'use strict';
 
+  // Apply the heavy SVG displacement only to a small set of large surfaces.
+  // Product cards and admin rows keep the CSS glass treatment without per-element SVG work.
   const SELECTOR = [
     '.hd',
     '.srch',
     '.flt',
     '.tabs',
     '.bar',
-    '.f',
-    '.tn',
-    '.card',
     '.glass-banner',
     '.related-products',
-    '.related-card',
-    '.btn.s',
-    '.nav-btn',
-    '.theme-btn',
-    '.control-btn',
-    '.departments a',
-    '.chips a',
-    '.gb',
-    '.cnt',
-    '.card em',
-    '.sz',
-    '.ata-chat',
-    '.ata-chat-fab',
-    '.ata-chat-product'
+    '.ata-chat'
   ].join(',');
 
   const initialized = new WeakMap();

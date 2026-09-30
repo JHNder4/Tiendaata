@@ -158,7 +158,7 @@ async function refreshAdminState(){if(!isAdmin){S.o=[];return;}try{await loadOrd
 
 async function persistProducts(){
   const currentIds=new Set(S.p.map(p=>p.id)),changed=S.p.filter(p=>snapshot[p.id]!==JSON.stringify(p)),deleted=Object.keys(snapshot).filter(id=>!currentIds.has(id));
-  if(!changed.length&&!deleted.length)return true;if(!isAdmin){toast('Ingresa la contraseña de administrador para guardar cambios.');return false;}
+  if(!changed.length&&!deleted.length)return true;if(!isAdmin){toast('Inicia sesión como administrador para guardar cambios.');return false;}
   if(changed.length){await adminRequest('upsert_products',{rows:changed.map(rowForProduct)});changed.forEach(p=>{snapshot[p.id]=JSON.stringify(p);});}
   if(deleted.length){await adminRequest('delete_products',{ids:deleted});deleted.forEach(id=>delete snapshot[id]);}return true;
 }
@@ -601,7 +601,7 @@ function resizeImage(file) {
   });
 }
 
-async function uploadPhoto(file){if(!isAdmin)throw new Error('Ingresa la contraseña de administrador para subir fotos.');if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');const blob=await resizeImage(file),name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`,bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));const result=await adminRequest('upload_photo',{name,contentType:'image/jpeg',base64:btoa(binary)});return result.url;}
+async function uploadPhoto(file){if(!isAdmin)throw new Error('Inicia sesión como administrador para subir fotos.');if(!file.type.startsWith('image/'))throw new Error('El archivo debe ser una imagen.');const blob=await resizeImage(file),name=`${Date.now()}-${Math.random().toString(36).slice(2,9)}.jpg`,bytes=new Uint8Array(await blob.arrayBuffer());let binary='';for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,i+0x8000));const result=await adminRequest('upload_photo',{name,contentType:'image/jpeg',base64:btoa(binary)});return result.url;}
 async function addPhotos(files, replaceAt = null) {
   const accepted = [...files].filter((file) => file.type.startsWith('image/'));
   if (!accepted.length) return;
@@ -768,6 +768,6 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-async function init(){try{if(window.__clerkReady) await window.__clerkReady;session=window.Clerk?.session||null;await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')&&window.Clerk?.user&&!isAdmin) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
+async function init(){try{if(window.__clerkReady) { await window.__clerkReady; clerkReady=!!window.Clerk; } session=window.Clerk?.session||null;await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();if(location.hash.startsWith('#/admin')&&window.Clerk?.user&&!isAdmin) void verifyAdminSession();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
 
 void init();

@@ -264,6 +264,69 @@ function bannerMarkup() {
     </article>`;
   }).join('')}</div></section>`;
 }
+function setupBannerAutoplay() {
+  const track = $('.banner-track');
+  if (!track) return;
+
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+
+  if (window.__ataBannerAutoplayCleanup) {
+    window.__ataBannerAutoplayCleanup();
+    window.__ataBannerAutoplayCleanup = null;
+  }
+
+  const slides = $('.glass-banner', track);
+  if (slides.length < 2) return;
+
+  let index = 0;
+  let timer = null;
+  let paused = false;
+
+  const syncIndex = () => {
+    const width = track.clientWidth || 1;
+    index = Math.max(0, Math.min(slides.length - 1, Math.round(track.scrollLeft / width)));
+  };
+
+  const goNext = () => {
+    if (paused || document.hidden) return;
+    syncIndex();
+    index = (index + 1) % slides.length;
+    track.scrollTo({
+      left: slides[index].offsetLeft - track.offsetLeft,
+      behavior: 'smooth'
+    });
+  };
+
+  const restart = () => {
+    clearInterval(timer);
+    timer = setInterval(goNext, 5000);
+  };
+
+  const pause = () => { paused = true; };
+  const resume = () => { paused = false; restart(); };
+
+  track.addEventListener('scroll', syncIndex, { passive: true });
+  track.addEventListener('pointerenter', pause);
+  track.addEventListener('pointerleave', resume);
+  track.addEventListener('focusin', pause);
+  track.addEventListener('focusout', resume);
+  track.addEventListener('touchstart', pause, { passive: true });
+  track.addEventListener('touchend', resume, { passive: true });
+
+  restart();
+
+  window.__ataBannerAutoplayCleanup = () => {
+    clearInterval(timer);
+    track.removeEventListener('scroll', syncIndex);
+    track.removeEventListener('pointerenter', pause);
+    track.removeEventListener('pointerleave', resume);
+    track.removeEventListener('focusin', pause);
+    track.removeEventListener('focusout', resume);
+    track.removeEventListener('touchstart', pause);
+    track.removeEventListener('touchend', resume);
+  };
+}
+
 function home() {
   const list = publishedProducts();
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
@@ -1068,7 +1131,7 @@ function render() {
   else if (route[0] === 'confirmacion') content = done(route[1]);
   else content = '<p>Página no encontrada.</p>';
   app.innerHTML = shell(content);
-  applyTheme(); bindThemeToggle(); bindChat();
+  applyTheme(); bindThemeToggle(); bindChat(); setupBannerAutoplay();
   if (route[0] === 'catalogo') renderProductList();
   if (route[0] === 'pedido') $('#checkout-form')?.addEventListener('submit', placeOrder);
   after?.();

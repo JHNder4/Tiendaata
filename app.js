@@ -40,7 +40,7 @@ const seedProducts = () => DEMO_PRODUCTS.map((item) => ({
   det: {}
 }));
 
-let S = { p: [], o: [], c: [] };
+let S = { p: [], o: [], c: [], promos: [] };
 let session = null;
 let isAdmin = false;
 let adminPassword = '';
@@ -99,14 +99,36 @@ const stockForSize = (product, size) => product.sizes
   : Number(product.stock || 0);
 const publishedProducts = () => S.p.filter((product) => product.status === 'published');
 const cartCount = () => S.c.reduce((sum, item) => sum + Number(item.qty || 0), 0);
-const productPrice = (product) => money(product.price) + (
-  Number(product.old) > Number(product.price) ? `<span class="old">${money(product.old)}</span>` : ''
-);
+const activePromotions = () => S.promos.filter((promo) => {
+  if (!promo.active) return false;
+  const now = Date.now();
+  return (!promo.starts_at || new Date(promo.starts_at).getTime() <= now) &&
+    (!promo.ends_at || new Date(promo.ends_at).getTime() >= now);
+};
+const promoForProduct = (product) => {
+  const matches = activePromotions().filter((promo) => promo.scope === 'all' || (promo.scope === 'category' && promo.target === product.cat) || (promo.scope === 'product' && promo.target === product.id));
+  return matches.reduce((best, promo) => {
+    const base = Number(product.price || 0);
+    const savings = promo.discount_type === 'percent' ? base * Math.min(100, Number(promo.discount_value || 0)) / 100 : Math.min(base, Number(promo.discount_value || 0));
+    const bestSavings = best ? (best.discount_type === 'percent' ? base * Math.min(100, Number(best.discount_value || 0)) / 100 : Math.min(base, Number(best.discount_value || 0))) : -1;
+    return savings > bestSavings ? promo : best;
+  }, null);
+};
+const effectivePrice = (product) => {
+  const base = Number(product.price || 0), promo = promoForProduct(product);
+  if (!promo) return base;
+  const value = promo.discount_type === 'percent' ? base * (1 - Math.min(100, Number(promo.discount_value || 0)) / 100) : base - Math.min(base, Number(promo.discount_value || 0));
+  return Math.max(0, Math.round(value * 100) / 100);
+};
+const productPrice = (product) => {
+  const current = effectivePrice(product), base = Number(product.price || 0), old = Number(product.old || 0), reference = old > base ? old : base, promo = promoForProduct(product);
+  return money(current) + (reference > current ? `<span class="old">${money(reference)}</span>` : '') + (promo ? `<em class="promo-badge">${esc(promo.badge || 'Oferta')}</em>` : '');
+};
 const cartRows = () => {
   S.c = S.c.filter((item) => S.p.some((product) => product.id === item.pid));
   return S.c.map((item, index) => ({ item, index, product: S.p.find((product) => product.id === item.pid) }));
 };
-const cartTotal = () => cartRows().reduce((sum, { item, product }) => sum + item.qty * Number(product.price || 0), 0);
+const cartTotal = () => cartRows().reduce((sum, { item, product }) => sum + item.qty * effectivePrice(product), 0);
 const orderTotal = (order) => (order.items || []).reduce((sum, item) => sum + Number(item.price || 0) * Number(item.qty || 0), 0);
 const go = (hash) => { location.hash = hash; };
 
@@ -123,7 +145,11 @@ async function loadProducts(){
   Object.keys(snapshot).forEach(id=>delete snapshot[id]);S.p.forEach(product=>{snapshot[product.id]=JSON.stringify(product);});
 }
 async function loadOrders(){if(!isAdmin){S.o=[];return;}const result=await adminRequest('orders');S.o=(result.data||[]).map(r=>({...r.data||{},n:r.n}));}
-async function refreshAdminState(){if(!isAdmin){S.o=[];return;}try{await loadOrders();}catch(error){console.error('No se pudieron cargar los pedidos:',error);S.o=[];}}
+async function loadPromotions(){
+  if(isAdmin){const result=await adminRequest('promotions');S.promos=result.data||[];}
+  else{const {data,error}=await client.from('promotions').select('*').order('priority',{ascending:false}).order('created_at',{ascending:false});if(error)throw error;S.promos=data||[];}
+}
+async function refreshAdminState(){if(!isAdmin){S.o=[];return;}try{await loadOrders();await loadPromotions();}catch(error){console.error('No se pudieron cargar los datos de administración:',error);S.o=[];S.promos=[];}}
 
 async function persistProducts(){
   const currentIds=new Set(S.p.map(p=>p.id)),changed=S.p.filter(p=>snapshot[p.id]!==JSON.stringify(p)),deleted=Object.keys(snapshot).filter(id=>!currentIds.has(id));
@@ -155,9 +181,10 @@ function productCard(product) {
 
 function home() {
   const list = publishedProducts();
-  const offers = list.filter((product) => Number(product.old) > Number(product.price));
+  const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
   const categories = [...new Set(list.map((product) => product.cat).filter(Boolean))];
-  return `<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><input name="q" placeholder="Buscar prendas" aria-label="Buscar"><button class="btn">Buscar</button></form>
+  const banners = activePromotions().filter((promo) => promo.scope === 'all');
+  return `${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || 'Oferta')}</span><strong>${esc(promo.title)}</strong><p>${esc(promo.subtitle || '')}</p></div>`).join('')}</div>` : ''}<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><input name="q" placeholder="Buscar prendas" aria-label="Buscar"><button class="btn">Buscar</button></form>
     <h2>Categorías</h2><div class="chips">${categories.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join('')}</div>
     <h2>Novedades</h2><div class="grid">${list.slice(-4).reverse().map(productCard).join('') || '<p class="mu">Aún no hay productos publicados.</p>'}</div>
     ${offers.length ? `<h2>Ofertas</h2><div class="grid">${offers.map(productCard).join('')}</div>` : ''}`;
@@ -301,7 +328,7 @@ async function placeOrder(event) {
       name: product.name,
       size: item.size,
       qty: item.qty,
-      price: Number(product.price)
+      price: effectivePrice(product)
     }))
   };
 
@@ -333,14 +360,14 @@ function adminDenied() {
 
 function bindAdminLogin(){
   const form=$('#admin-login');if(form)form.onsubmit=async event=>{event.preventDefault();const button=$('#login-button'),message=$('#login-error');button.disabled=true;button.textContent='Verificando…';message.textContent='';
-    try{const password=form.elements.password.value;const response=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,action:'check'})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.error||'Contraseña incorrecta.');adminPassword=password;isAdmin=true;session={admin:true};await loadProducts();await loadOrders();render();}
+    try{const password=form.elements.password.value;const response=await fetch(ADMIN_FN,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password,action:'check'})});const data=await response.json().catch(()=>({}));if(!response.ok||!data.ok)throw new Error(data.error||'Contraseña incorrecta.');adminPassword=password;isAdmin=true;session={admin:true};await loadProducts();await loadOrders();await loadPromotions();render();}
     catch(error){message.textContent=error.message||'Contraseña incorrecta.';button.disabled=false;button.textContent='Entrar';}};
   const logout=$('#logout-button');if(logout)logout.onclick=signOut;
 }
 async function signOut(){adminPassword='';session=null;isAdmin=false;S.o=[];render();toast('Sesión cerrada.');}
 
 function adminShell(section, content) {
-  const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['inventario', 'Inventario', 0], ['ajustes', 'Ajustes', 0]];
+  const tabs = [['pedidos', 'Pedidos', S.o.length], ['productos', 'Productos', S.p.length], ['promociones', 'Promos', S.promos.filter((promo) => promo.active).length], ['inventario', 'Inventario', 0], ['ajustes', 'Ajustes', 0]];
   return `<div class="ahd"><h1>Panel de administración</h1><div class="row"><a href="#/">Ver tienda</a><button class="btn s sm" id="logout-button">Cerrar sesión</button></div></div><div class="tabs">${tabs.map(([key, title, count]) => `<a href="#/admin/${key}" class="${key === section ? 'on' : ''}">${title}${count ? `<span class="bad">${count}</span>` : ''}</a>`).join('')}</div>${content}`;
 }
 
@@ -423,8 +450,73 @@ function inventory() {
   return `<table><thead><tr><th>Producto</th><th>Talla</th><th>Cantidad</th></tr></thead><tbody>${S.p.flatMap((product) => (product.sizes ? Object.keys(product.sizes) : ['']).map((size) => `<tr><td>${esc(product.name)}</td><td>${esc(size || '—')}</td><td><input type="number" min="0" class="${stockForSize(product, size) <= 2 ? 'low' : ''}" value="${stockForSize(product, size)}" aria-label="Cantidad de ${esc(product.name)} ${esc(size)}" onchange="setStk('${esc(product.id)}','${esc(size)}',this.value)"></td></tr>`)).join('')}</tbody></table>`;
 }
 
+function promoTargetOptions(scope, selected = '') {
+  const values = scope === 'category'
+    ? [...new Set(S.p.map((product) => product.cat).filter(Boolean))].map((value) => ({ value, label: value }))
+    : scope === 'product'
+      ? S.p.map((product) => ({ value: product.id, label: product.name || product.id }))
+      : [];
+  return values.map((item) => `<option value="${esc(item.value)}" ${item.value === selected ? 'selected' : ''}>${esc(item.label)}</option>`).join('');
+}
+function promotions() {
+  const list = S.promos || [];
+  return `<section class="f promo-editor"><h2>Promociones y descuentos</h2><p class="mu">Crea descuentos por porcentaje o cantidad fija y aplícalos a toda la tienda, una categoría o un producto.</p>
+    <div class="row"><label>Nombre<input id="promo-title" placeholder="Ej. Fin de temporada"></label><label>Etiqueta<input id="promo-badge" value="Oferta" placeholder="Ej. -30%"></label></div>
+    <label>Mensaje<input id="promo-subtitle" placeholder="Ej. Hasta 30% de descuento en seleccionados"></label>
+    <div class="row"><label>Tipo<select id="promo-type"><option value="percent">Porcentaje (%)</option><option value="amount">Cantidad fija ($)</option></select></label><label>Descuento<input id="promo-value" type="number" min="0" step="0.01" placeholder="30"></label></div>
+    <div class="row"><label>Aplicar a<select id="promo-scope"><option value="all">Toda la tienda</option><option value="category">Una categoría</option><option value="product">Un producto</option></select></label><label id="promo-target-wrap">Categoría<select id="promo-target"><option value="">Selecciona</option>${promoTargetOptions('category')}</select></label></div>
+    <div class="row"><label>Desde<input id="promo-start" type="datetime-local"></label><label>Hasta<input id="promo-end" type="datetime-local"></label></div>
+    <label class="ck"><input id="promo-active" type="checkbox" checked> Activa</label>
+    <div class="acts"><button class="btn" id="promo-save">Crear promoción</button></div>
+  </section>
+  <section class="f"><h2>Promociones guardadas</h2>${list.length ? list.map((promo) => {
+    const active = promo.active && (!promo.starts_at || new Date(promo.starts_at) <= new Date()) && (!promo.ends_at || new Date(promo.ends_at) >= new Date());
+    const discount = promo.discount_type === 'percent' ? `${Number(promo.discount_value)}%` : money(promo.discount_value);
+    const target = promo.scope === 'all' ? 'Toda la tienda' : promo.scope === 'category' ? `Categoría: ${promo.target}` : `Producto: ${S.p.find((p) => p.id === promo.target)?.name || promo.target}`;
+    return `<div class="promo-row"><div><strong>${esc(promo.title)}</strong><span class="tag">${esc(promo.badge || 'Oferta')}</span><div class="mu">${esc(promo.subtitle || '')} · ${esc(discount)} · ${esc(target)} · ${active ? 'Activa' : 'Inactiva'}</div></div><div class="row"><button class="btn s sm" onclick="togglePromo('${esc(promo.id)}')">${promo.active ? 'Desactivar' : 'Activar'}</button><button class="btn d sm" onclick="deletePromo('${esc(promo.id)}')">Eliminar</button></div></div>`;
+  }).join('') : '<p class="mu">Todavía no hay promociones.</p>'}</section>`;
+}
+function bindPromotions() {
+  const scope = $('#promo-scope'), targetWrap = $('#promo-target-wrap');
+  const updateTarget = () => {
+    const value = scope.value;
+    if (value === 'all') {
+      targetWrap.innerHTML = '<span class="mu" style="padding-top:28px">Se aplicará a todos los productos publicados.</span>';
+      return;
+    }
+    targetWrap.innerHTML = `<label>${value === 'category' ? 'Categoría' : 'Producto'}<select id="promo-target"><option value="">Selecciona</option>${promoTargetOptions(value)}</select></label>`;
+  };
+  scope?.addEventListener('change', updateTarget);
+  updateTarget();
+  $('#promo-save')?.addEventListener('click', async () => {
+    const title = $('#promo-title')?.value.trim();
+    const value = Number($('#promo-value')?.value || 0);
+    const currentScope = $('#promo-scope')?.value || 'all';
+    const target = currentScope === 'all' ? '' : ($('#promo-target')?.value || '');
+    if (!title) return toast('Escribe un nombre para la promoción.');
+    if (value <= 0) return toast('Indica un descuento mayor que 0.');
+    if (currentScope !== 'all' && !target) return toast('Selecciona dónde aplicar la promoción.');
+    if ($('#promo-type')?.value === 'percent' && value > 100) return toast('El porcentaje no puede superar 100%.');
+    const row = { id: 'promo_' + Date.now(), title, subtitle: $('#promo-subtitle')?.value.trim() || '', badge: $('#promo-badge')?.value.trim() || 'Oferta', discount_type: $('#promo-type')?.value || 'percent', discount_value: value, scope: currentScope, target, starts_at: $('#promo-start')?.value ? new Date($('#promo-start').value).toISOString() : null, ends_at: $('#promo-end')?.value ? new Date($('#promo-end').value).toISOString() : null, active: $('#promo-active')?.checked !== false, priority: 0 };
+    if (row.starts_at && row.ends_at && new Date(row.ends_at) < new Date(row.starts_at)) return toast('La fecha final debe ser posterior a la inicial.');
+    const button = $('#promo-save'); if (button) { button.disabled = true; button.textContent = 'Guardando…'; }
+    try { await adminRequest('upsert_promotions', { rows: [row] }); await loadPromotions(); toast('Promoción creada.'); render(); }
+    catch (error) { toast(error.message || 'No se pudo guardar la promoción.'); if (button) { button.disabled = false; button.textContent = 'Crear promoción'; } }
+  });
+}
+async function togglePromo(id) {
+  const promo = S.promos.find((item) => item.id === id); if (!promo) return;
+  try { await adminRequest('upsert_promotions', { rows: [{ ...promo, active: !promo.active }] }); await loadPromotions(); render(); }
+  catch (error) { toast(error.message || 'No se pudo actualizar la promoción.'); }
+}
+async function deletePromo(id) {
+  if (!confirm('¿Eliminar esta promoción?')) return;
+  try { await adminRequest('delete_promotions', { ids: [id] }); await loadPromotions(); render(); toast('Promoción eliminada.'); }
+  catch (error) { toast(error.message || 'No se pudo eliminar la promoción.'); }
+}
+
 function settings() {
-  return `<div class="acts"><button class="btn s" onclick="resetDemo()">Restablecer datos de ejemplo</button></div><p class="mu">Los productos y pedidos se gestionan desde Supabase.</p>`;
+  return `<div class="acts"><button class="btn s" onclick="resetDemo()">Restablecer datos de ejemplo</button></div><p class="mu">Los productos, promociones y pedidos se gestionan desde Supabase.</p>`;
 }
 
 function blankProduct() {
@@ -591,6 +683,7 @@ function loginOrAdminContent(section, route) {
   if (section === 'pedidos') content = orders();
   else if (section === 'pedido') content = orderDetail(route[2]);
   else if (section === 'productos') content = products();
+  else if (section === 'promociones') content = promotions();
   else if (section === 'producto') { content = editor(route[2] || 'nuevo'); after = bindEditor; }
   else if (section === 'inventario') content = inventory();
   else if (section === 'ajustes') content = settings();
@@ -611,7 +704,7 @@ function render() {
     const result = loginOrAdminContent(section, route);
     app.innerHTML = shell(typeof result === 'string' ? result : result.html);
     if (typeof result === 'string') bindAdminLogin();
-    else { result.after?.(); bindAdminLogin(); }
+    else { result.after?.(); bindAdminLogin(); if (section === 'promociones') bindPromotions(); }
     return;
   }
 
@@ -644,6 +737,6 @@ function handleRouteChange() {
 }
 
 window.addEventListener('hashchange', handleRouteChange);
-async function init(){try{await loadProducts();ready=true;currentRoute=location.hash;render();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
+async function init(){try{await loadProducts();await loadPromotions();ready=true;currentRoute=location.hash;render();}catch(error){console.error('No se pudo iniciar la tienda:',error);$('#app').innerHTML='<p>No se pudo conectar con Supabase. <a href="" onclick="location.reload();return false">Reintentar</a></p>';}}
 
 void init();

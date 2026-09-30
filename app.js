@@ -186,11 +186,11 @@ function home() {
   const offers = list.filter((product) => effectivePrice(product) < Number(product.price || 0) || Number(product.old) > Number(product.price));
   const categories = [...new Set(list.map((product) => product.cat).filter(Boolean))];
   const banners = activePromotions().filter((promo) => promo.scope === 'all');
-  return `${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || 'Oferta')}</span><strong>${esc(promo.title)}</strong><p>${esc(promo.subtitle || '')}</p></div>`).join('')}</div>` : ''}<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><input name="q" placeholder="Buscar prendas" aria-label="Buscar"><button class="btn">Buscar</button></form>
-    <div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div>
-    <h2>Categorías</h2><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join('')}</div>
-    <h2>General</h2><p class="mu">Toda la tienda en un solo lugar.</p><div class="grid">${list.slice(-8).reverse().map(productCard).join('') || '<p class="mu">Aún no hay productos publicados.</p>'}</div>
-    ${offers.length ? `<h2>Ofertas</h2><div class="grid">${offers.map(productCard).join('')}</div>` : ''}`;
+  return `${banners.length ? `<div class="promo-banner">${banners.slice(0,3).map((promo) => `<div><span>${esc(promo.badge || "Oferta")}</span><strong>${esc(promo.title)}</strong>${promo.subtitle ? `<p>${esc(promo.subtitle)}</p>` : ""}</div>`).join("")}</div>` : ""}<form class="srch" onsubmit="go('#/catalogo?q='+encodeURIComponent(this.q.value));return false"><span class="search-icon">⌕</span><input name="q" placeholder="Buscar" aria-label="Buscar"><button class="btn">Buscar</button></form>
+     <div class="departments"><a class="on" href="#/">General</a><a href="#/catalogo?genero=hombre">Hombre</a><a href="#/catalogo?genero=mujer">Mujer</a></div>
+     <div class="section-label">Categorías</div><div class="chips">${CATEGORIES.map((category) => `<a href="#/catalogo?cat=${encodeURIComponent(category)}">${esc(category)}</a>`).join("")}</div>
+     <div class="home-products">${list.slice(-8).reverse().map(productCard).join("")}</div>
+     ${offers.length ? `<section class="offer-block"><div class="section-label">Ofertas</div><div class="grid">${offers.map(productCard).join("")}</div></section>` : ""}`;
 }
 
 function filteredProducts() {
